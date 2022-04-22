@@ -55,8 +55,8 @@ class ResNet(nn.Module):
 
         super().__init__()
 
-        assert len(groups) == len(c_hidden)
-        assert len(groups) > 0
+        if len(groups) != len(c_hidden) and len(groups) == 0:
+            raise RuntimeError(f"'groups' and 'c_hidden' need to have the same length > 0!")
 
         act_fn = nn.ReLU(inplace=True)
 
@@ -64,7 +64,7 @@ class ResNet(nn.Module):
         self.input_net = nn.Sequential(
             nn.Conv2d(c_in, c_hidden[0], kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(c_hidden[0]),
-            act_fn
+            act_fn,
         )
 
         # Construct ResNet blocks.

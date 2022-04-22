@@ -24,7 +24,7 @@ def selective_search(image: np.ndarray, use_fast: bool = True) -> np.ndarray:
     return ss.process()
 
 
-def calculate_iou(bb1: tuple[int, ...], bb2: tuple[int, ...]) -> float:
+def calculate_iou(bb1: tuple[int, ...], bb2: tuple[int, ...], epsilon: float = 1e-5) -> float:
     # bb: [x1,y1,x2,y2]
     assert len(bb1) == len(bb2)
     assert len(bb1) == 4
@@ -43,7 +43,7 @@ def calculate_iou(bb1: tuple[int, ...], bb2: tuple[int, ...]) -> float:
     area_bb1 = abs((bb1[2] - bb1[0]) * (bb1[3] - bb1[1]))
     area_bb2 = abs((bb2[2] - bb2[0]) * (bb2[3] - bb2[1]))
 
-    return float(area_inter) / (area_bb1 + area_bb2 - area_inter)
+    return float(area_inter) / (area_bb1 + area_bb2 - area_inter + epsilon)
 
 
 def is_full_overlap(in_bb: tuple[int, ...], out_bb: tuple[int, ...]) -> bool:
