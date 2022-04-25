@@ -44,10 +44,3 @@ def calculate_iou(bb1: tuple[int, ...], bb2: tuple[int, ...], epsilon: float = 1
     area_bb2 = abs((bb2[2] - bb2[0]) * (bb2[3] - bb2[1]))
 
     return float(area_inter) / (area_bb1 + area_bb2 - area_inter + epsilon)
-
-
-def is_full_overlap(in_bb: tuple[int, ...], out_bb: tuple[int, ...]) -> bool:
-    return in_bb[0] >= out_bb[0] and \
-           in_bb[1] >= out_bb[1] and \
-           in_bb[2] <= out_bb[2] and \
-           in_bb[3] <= out_bb[3]

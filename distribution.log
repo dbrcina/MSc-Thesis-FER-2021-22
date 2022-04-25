@@ -1,0 +1,6 @@
+C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\venv\Scripts\python.exe C:/Users/dbrcina/Desktop/MSc-Thesis-FER-2021-22/src/exploratory_analysis_distribution.py data/train
+Reading images from 'data/train' into memory and calculating mean and std:
+MEAN: [0.42099491 0.41037788 0.4102286 ]
+STD: [0.27918375 0.28085432 0.28571102]
+
+Process finished with exit code 0

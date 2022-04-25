@@ -65,8 +65,7 @@ def _generate_data_for_image(image: np.ndarray, gt_bbs: list[tuple[int, ...]]) -
 
     X_train, X_val, y_train, y_val = model_selection.train_test_split(np.array(data), np.array(labels),
                                                                       test_size=config.TRAIN_VAL_SPLIT,
-                                                                      random_state=config.RANDOM_SEED,
-                                                                      stratify=labels)
+                                                                      random_state=config.RANDOM_SEED)
 
     return X_train, X_val, y_train, y_val
 
@@ -97,19 +96,14 @@ def _generate_data(base_path: str, train_path: dict[str, str], val_path: dict[st
             X_train, X_val, y_train, y_val = _generate_data_for_image(image, gt_bbs)
 
             counters = _save_results(X_train, y_train, train_path, total_positives_train, total_negatives_train)
-            total_positives_train = counters[0] - total_positives_train
-            total_negatives_train = counters[1] - total_negatives_train
+            total_positives_train = counters[0]
+            total_negatives_train = counters[1]
 
             counters = _save_results(X_val, y_val, val_path, total_positives_val, total_negatives_val)
-            total_positives_val = counters[0] - total_positives_val
-            total_negatives_val = counters[1] - total_negatives_val
+            total_positives_val = counters[0]
+            total_negatives_val = counters[1]
 
             print(f"  Time elapsed: {(time.time() - start_time)}s.")
-
-            if counter == 2:
-                break
-        if counter == 2:
-            break
 
     total_train = total_positives_train + total_negatives_train
     total_val = total_positives_val + total_negatives_val

@@ -31,7 +31,7 @@ class ResNetBlock(nn.Module):
             nn.Conv2d(c_out, c_out, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(c_out)
         )
-        self.downsample = nn.Conv2d(c_in, c_out, kernel_size=1, padding=1, stride=2) if subsample else None
+        self.downsample = nn.Conv2d(c_in, c_out, kernel_size=3, padding=1, stride=2) if subsample else None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         f = self.net(x)
@@ -108,27 +108,35 @@ class ALPRLightningModule(pl.LightningModule):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        out = self(x)
+        if out.shape[-1] == 1:
+            return torch.sigmoid(out)
+        return torch.softmax(out, dim=1)
+
     def configure_optimizers(self):
         optimizer = optim.SGD(self.parameters(), **self.hparams.optimizer_hparams)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **self.hparams.lr_scheduler_hparams)
-        return [optimizer], [scheduler]
+        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
 
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, labels = batch
-        preds = self(x)
-        loss = self.loss_module(preds, labels)
-        acc = self.accuracy_fn(preds, labels)
+        logits = self(x).flatten()
 
-        self.log("train_loss", loss, prog_bar=True)
+        loss = self.loss_module(logits, labels.float())
+        acc = self.accuracy_fn(logits, labels)
+
+        self.log("train_loss", loss)
         self.log("train_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
 
         return loss
 
     def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         x, labels = batch
-        preds = self(x)
-        loss = self.loss_module(preds, labels)
-        acc = self.accuracy_fn(preds, labels)
+        logits = self(x).flatten()
+
+        loss = self.loss_module(logits, labels.float())
+        acc = self.accuracy_fn(logits, labels)
 
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_acc", acc, prog_bar=True)
