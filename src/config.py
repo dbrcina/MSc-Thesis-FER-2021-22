@@ -1,3 +1,5 @@
+import os.path
+
 IMG_WIDTH = 640
 IMG_HEIGHT = 480
 IMG_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')
@@ -23,3 +25,6 @@ RANDOM_SEED = 42
 TRAIN_VAL_SPLIT = 0.2
 
 MAX_INFERENCE_SAMPLES = 100
+
+OD_PL_PATH = "od"
+OD_PL_MODELS_PATH = os.path.join(OD_PL_PATH, "models")

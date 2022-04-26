@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List, Dict, Tuple
 
 import pytorch_lightning as pl
 import torch
@@ -43,7 +43,7 @@ class ResNetBlock(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, n_classes: int, groups: list[int], c_hidden: list[int], c_in: int = 3) -> None:
+    def __init__(self, n_classes: int, groups: List[int], c_hidden: List[int], c_in: int = 3) -> None:
         """
         Inputs:
             n_classes - Number of classification outputs.
@@ -62,7 +62,7 @@ class ResNet(nn.Module):
 
         # Construct input layer.
         self.input_net = nn.Sequential(
-            nn.Conv2d(c_in, c_hidden[0], kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(c_in, c_hidden[0], kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(c_hidden[0]),
             act_fn,
         )
@@ -95,14 +95,14 @@ class ResNet(nn.Module):
 
 class ALPRLightningModule(pl.LightningModule):
     def __init__(self,
-                 model_hparams: dict[str, Any],
-                 optimizer_hparams: dict[str, Any],
-                 lr_scheduler_hparams: dict[str, Any]) -> None:
+                 model_hparams: Dict[str, Any],
+                 optimizer_hparams: Dict[str, Any],
+                 lr_scheduler_hparams: Dict[str, Any]) -> None:
         super().__init__()
 
         self.save_hyperparameters()
         self.model = ResNet(**model_hparams)
-        self.loss_module = nn.BCEWithLogitsLoss()
+        self.loss_module_with_logits = nn.BCEWithLogitsLoss()
         self.accuracy_fn = torchmetrics.functional.accuracy
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -117,25 +117,32 @@ class ALPRLightningModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = optim.SGD(self.parameters(), **self.hparams.optimizer_hparams)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **self.hparams.lr_scheduler_hparams)
-        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "epoch",
+                "monitor": "val_loss"
+            },
+        }
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, labels = batch
-        logits = self(x).flatten()
+        logits = self(x).view(-1)
 
-        loss = self.loss_module(logits, labels.float())
+        loss = self.loss_module_with_logits(logits, labels.float())
         acc = self.accuracy_fn(logits, labels)
 
         self.log("train_loss", loss)
-        self.log("train_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train_acc", acc, on_step=False, on_epoch=True)
 
         return loss
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
         x, labels = batch
-        logits = self(x).flatten()
+        logits = self(x).view(-1)
 
-        loss = self.loss_module(logits, labels.float())
+        loss = self.loss_module_with_logits(logits, labels.float())
         acc = self.accuracy_fn(logits, labels)
 
         self.log("val_loss", loss, prog_bar=True)

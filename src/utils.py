@@ -1,4 +1,5 @@
 import os.path
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -24,7 +25,7 @@ def selective_search(image: np.ndarray, use_fast: bool = True) -> np.ndarray:
     return ss.process()
 
 
-def calculate_iou(bb1: tuple[int, ...], bb2: tuple[int, ...], epsilon: float = 1e-5) -> float:
+def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1e-5) -> float:
     # bb: [x1,y1,x2,y2]
     assert len(bb1) == len(bb2)
     assert len(bb1) == 4

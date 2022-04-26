@@ -1,19 +1,27 @@
 import argparse
 
 import cv2
-import torch
+import torch.nn
 
 import config
-import utils
-from datasets import VAL_TRANSFORM
+from datasets import VAL_TRANSFORM_OD
 from models import ALPRLightningModule
 
 
 def main(args: argparse.Namespace) -> None:
     od_model = ALPRLightningModule.load_from_checkpoint(args.od_model_path)
 
-    image = cv2.imread(args.image_path)
-    rp_bbs = utils.selective_search(image, use_fast=True)
+    image = cv2.imread(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data_od\train\1\88.jpg")
+    image = VAL_TRANSFORM_OD(image)
+    image = image[None, :, :, :]
+    out = od_model(image)
+    print(torch.sigmoid(out*(-1)))
+    return
+
+    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
+    ss.setBaseImage(image)
+    ss.switchToSelectiveSearchFast()
+    rp_bbs = ss.process()
 
     lp_roi = None
     lp_prob = 0
@@ -24,8 +32,8 @@ def main(args: argparse.Namespace) -> None:
 
         roi = image[y:y + h, x:x + w]
         roi = cv2.resize(roi, config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
-        roi = VAL_TRANSFORM(roi)
-        roi = torch.from_numpy(roi)
+        roi = VAL_TRANSFORM_OD(roi)
+        roi = roi[None, :, :, :]
         prob = od_model.predict(roi)
         if prob >= 0.5:
             if prob > lp_prob:
