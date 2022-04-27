@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
@@ -16,9 +17,9 @@ cv2.setNumThreads(os.cpu_count() - 1)
 
 def _save_results(X: np.ndarray,
                   y: np.ndarray,
-                  path: dict[str, str],
+                  path: Dict[str, str],
                   positives: int,
-                  negatives: int) -> tuple[int, int]:
+                  negatives: int) -> Tuple[int, int]:
     for x, label in zip(X, y):
         if label == config.POSITIVE_LABEL:
             positives += 1
@@ -33,8 +34,11 @@ def _save_results(X: np.ndarray,
     return positives, negatives
 
 
-def _generate_data_for_image(image: np.ndarray, gt_bbs: list[tuple[int, ...]]) -> tuple[np.ndarray, ...]:
-    rp_bbs = utils.selective_search(image, use_fast=True)
+def _generate_data_for_image(image: np.ndarray, gt_bbs: List[Tuple[int, ...]]) -> Tuple[np.ndarray, ...]:
+    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
+    ss.setBaseImage(image)
+    ss.switchToSelectiveSearchFast()
+    rp_bbs = ss.process()
 
     data = []
     labels = []
@@ -70,7 +74,7 @@ def _generate_data_for_image(image: np.ndarray, gt_bbs: list[tuple[int, ...]]) -
     return X_train, X_val, y_train, y_val
 
 
-def _generate_data(base_path: str, train_path: dict[str, str], val_path: dict[str, str]) -> tuple[int, int]:
+def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[str, str]) -> Tuple[int, int]:
     total_positives_train = 0
     total_negatives_train = 0
     total_positives_val = 0
@@ -119,7 +123,7 @@ def _create_dir(*paths: str) -> str:
     return path
 
 
-def _validate_input_arguments(args: argparse.Namespace) -> tuple[str, str]:
+def _validate_input_arguments(args: argparse.Namespace) -> Tuple[str, str]:
     base_path = args.base_path
     if not os.path.isdir(base_path):
         print(f"Provided '{base_path}' is not a directory!")

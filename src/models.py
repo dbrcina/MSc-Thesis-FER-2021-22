@@ -109,10 +109,10 @@ class ALPRLightningModule(pl.LightningModule):
         return self.model(x)
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
-        out = self(x)
-        if out.shape[-1] == 1:
-            return torch.sigmoid(out)
-        return torch.softmax(out, dim=1)
+        logits = self(x)
+        if logits.shape[-1] == 1:
+            return torch.sigmoid(logits)
+        return torch.softmax(logits, dim=1)
 
     def configure_optimizers(self):
         optimizer = optim.SGD(self.parameters(), **self.hparams.optimizer_hparams)

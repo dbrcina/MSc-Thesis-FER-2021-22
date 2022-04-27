@@ -1,9 +1,6 @@
 import os.path
 from typing import Tuple
 
-import cv2
-import numpy as np
-
 
 def join_multiple_paths(*paths: str) -> str:
     return os.path.join(*paths)
@@ -11,18 +8,6 @@ def join_multiple_paths(*paths: str) -> str:
 
 def replace_file_extension(filename: str, new_ext: str) -> str:
     return os.path.splitext(filename)[0] + new_ext
-
-
-def selective_search(image: np.ndarray, use_fast: bool = True) -> np.ndarray:
-    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
-    ss.setBaseImage(image)
-
-    if use_fast:
-        ss.switchToSelectiveSearchFast()
-    else:
-        ss.switchToSelectiveSearchQuality()
-
-    return ss.process()
 
 
 def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1e-5) -> float:

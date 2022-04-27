@@ -1,15 +1,13 @@
 import argparse
-import glob
 import os
 
-import numpy as np
 import torch
-from PIL import Image
-from torchvision.transforms.functional import to_tensor
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+from torchvision.transforms import ToTensor
 
-import config
 
-
+# https://towardsdatascience.com/how-to-calculate-the-mean-and-standard-deviation-normalizing-datasets-in-pytorch-704bd7d05f4c
 def main(args: argparse.Namespace) -> None:
     path = args.path
     if not os.path.isdir(path):
@@ -18,28 +16,24 @@ def main(args: argparse.Namespace) -> None:
 
     print(f"Reading images from '{path}' into memory and calculating mean and std:")
 
-    mean = torch.zeros(3)
-    var = torch.zeros(3)
+    dataset = ImageFolder(path, transform=ToTensor())
+    dataloader = DataLoader(dataset, batch_size=1024)
+
+    channels_mean_sum = 0
+    channels_mean_sq_sum = 0
     n = 0
-    for i, filename in enumerate(glob.glob(f"{path}/*/*{config.DATA_EXT}")):
-        if (i + 1) % 1000 == 0:
-            print(f"{i + 1}):...")
-        img = to_tensor(Image.open(filename))
-        mean += img.mean()
-        var += img.var(9)
-        n += img.shape[1] * img.shape[2]
 
-    return
+    for x, _ in dataloader:
+        # Mean over batch, height and width, but not over the channels
+        channels_mean_sum += torch.mean(x, dim=(0, 2, 3))
+        channels_mean_sq_sum += torch.mean(x ** 2, dim=(0, 2, 3))
+        n += 1
 
-    filenames = glob.glob(f"{path}/*/*{config.DATA_EXT}")
-    data = np.array([np.array(Image.open(filename), dtype=float) for filename in filenames])
+    mean = channels_mean_sum / n
+    std = (channels_mean_sq_sum / n - mean ** 2) ** 0.5
 
-    # Normalize to [0,1]
-    data /= 255.0
-
-    # Calculate over the last dimension, which represents color channel...
-    print(f"MEAN: {data.mean(axis=(0, 1, 2))}")
-    print(f"STD: {data.std(axis=(0, 1, 2))}")
+    print(f"MEAN: {mean}")
+    print(f"STD: {std}")
 
 
 if __name__ == "__main__":

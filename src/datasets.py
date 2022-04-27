@@ -4,16 +4,17 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
+# TODO: Add augmentation?
 TRAIN_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.3),
-    transforms.RandomAffine(degrees=50, translate=(0.1, 0.3), scale=(0.5, 0.75)),
-    transforms.Normalize([0.42099491, 0.41037788, 0.4102286], [0.27918375, 0.28085432, 0.28571102])
+    # transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.3),
+    # transforms.RandomAffine(degrees=50, translate=(0.1, 0.3), scale=(0.5, 0.75)),
+    transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2799, 0.2816, 0.2866])
 ])
 
 VAL_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.42099491, 0.41037788, 0.4102286], [0.27918375, 0.28085432, 0.28571102])
+    transforms.Normalize([0.2799, 0.2816, 0.2866], [0.2799, 0.2816, 0.2866])
 ])
 
 

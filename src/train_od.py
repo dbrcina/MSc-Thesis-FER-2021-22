@@ -25,14 +25,13 @@ def main(args: argparse.Namespace) -> None:
 
     model_hparams = {
         "n_classes": 1,
-        "groups": [6, 8, 12, 6],
-        "c_hidden": [64, 128, 256, 512]
+        "groups": [3, 3, 3],
+        "c_hidden": [32, 64, 128]
     }
     optimizer_hparams = {
         "lr": 1e-1,
         "momentum": 0.9,
-        "weight_decay": 1e-4,
-        "nesterov": True
+        "weight_decay": 1e-4
     }
     lr_scheduler_hparams = {
         "mode": "min",
