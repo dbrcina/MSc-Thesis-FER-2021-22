@@ -7,8 +7,6 @@ from torchvision import datasets, transforms
 # TODO: Add augmentation?
 TRAIN_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    # transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.3),
-    # transforms.RandomAffine(degrees=50, translate=(0.1, 0.3), scale=(0.5, 0.75)),
     transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2799, 0.2816, 0.2866])
 ])
 
@@ -17,10 +15,21 @@ VAL_TRANSFORM_OD = transforms.Compose([
     transforms.Normalize([0.2799, 0.2816, 0.2866], [0.2799, 0.2816, 0.2866])
 ])
 
+TRAIN_TRANSFORM_OCR = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Grayscale(),
+    transforms.Normalize(0.3757, 0.4676)
+])
 
-class ALPRODDataset(Dataset):
-    def __init__(self, root: str, train: bool) -> None:
-        transform = TRAIN_TRANSFORM_OD if train else VAL_TRANSFORM_OD
+VAL_TRANSFORM_OCR = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Grayscale(),
+    transforms.Normalize(0.3757, 0.4676)
+])
+
+
+class _ALPRDataset(Dataset):
+    def __init__(self, root: str, transform) -> None:
         self.dataset = datasets.ImageFolder(root, transform)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -28,3 +37,13 @@ class ALPRODDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.dataset)
+
+
+class ALPRODDataset(_ALPRDataset):
+    def __init__(self, root: str, train: bool) -> None:
+        super().__init__(root, TRAIN_TRANSFORM_OD if train else VAL_TRANSFORM_OD)
+
+
+class ALPROCRDataset(_ALPRDataset):
+    def __init__(self, root: str, train: bool) -> None:
+        super().__init__(root, TRAIN_TRANSFORM_OCR if train else VAL_TRANSFORM_OCR)
