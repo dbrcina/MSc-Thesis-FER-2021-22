@@ -1,16 +1,27 @@
 import argparse
+import string
 
 import cv2
+import torch
 
 import config
-from datasets import VAL_TRANSFORM_OD
+from datasets import VAL_TRANSFORM_OD, VAL_TRANSFORM_OCR
 from models import ALPRLightningModule
-
+from PIL import Image
 
 def main(args: argparse.Namespace) -> None:
     od_model = ALPRLightningModule.load_from_checkpoint(args.od_model_path)
+    ocr_model = ALPRLightningModule.load_from_checkpoint(args.ocr_model_path)
 
-    image = cv2.imread(args.image_path)
+    chars = list(string.digits + string.ascii_uppercase)
+
+    image = cv2.imread(args.image_path, cv2.IMREAD_GRAYSCALE)
+    x = VAL_TRANSFORM_OCR(Image.fromarray(image))
+    x: torch.Tensor = x[None, :, :, :]
+    prob = ocr_model.predict(x)
+    i = torch.argmax(prob, dim=1)
+    print(chars[i])
+    return
 
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     ss.setBaseImage(image)

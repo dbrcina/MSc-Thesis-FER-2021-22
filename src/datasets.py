@@ -22,8 +22,8 @@ TRAIN_TRANSFORM_OCR = transforms.Compose([
 ])
 
 VAL_TRANSFORM_OCR = transforms.Compose([
-    transforms.ToTensor(),
     transforms.Grayscale(),
+    transforms.ToTensor(),
     transforms.Normalize(0.3757, 0.4676)
 ])
 

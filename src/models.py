@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 import torch
 import torchmetrics
 from torch import nn, optim
+from torch.nn import functional as F
 
 
 class ResNetBlock(nn.Module):
@@ -102,16 +103,17 @@ class ALPRLightningModule(pl.LightningModule):
 
         self.save_hyperparameters()
         self.model = ResNet(**model_hparams)
-        self.loss_module_with_logits = nn.BCEWithLogitsLoss()
-        self.accuracy_fn = torchmetrics.functional.accuracy
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         logits = self(x)
+
+        # If binary classification, apply sigmoid.
         if logits.shape[-1] == 1:
             return torch.sigmoid(logits)
+
         return torch.softmax(logits, dim=1)
 
     def configure_optimizers(self):
@@ -127,11 +129,7 @@ class ALPRLightningModule(pl.LightningModule):
         }
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        x, labels = batch
-        logits = self(x).view(-1)
-
-        loss = self.loss_module_with_logits(logits, labels.float())
-        acc = self.accuracy_fn(logits, labels)
+        loss, acc = self._step(batch)
 
         self.log("train_loss", loss)
         self.log("train_acc", acc, on_step=False, on_epoch=True)
@@ -139,11 +137,21 @@ class ALPRLightningModule(pl.LightningModule):
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
-        x, labels = batch
-        logits = self(x).view(-1)
-
-        loss = self.loss_module_with_logits(logits, labels.float())
-        acc = self.accuracy_fn(logits, labels)
+        loss, acc = self._step(batch)
 
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_acc", acc, prog_bar=True)
+
+    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
+        x, labels = batch
+        logits = self(x)
+
+        # If binary classification, transform data and apply BCE
+        if logits.shape[-1] == 1:
+            logits = logits.view(-1)
+            loss = F.binary_cross_entropy_with_logits(logits, labels.float())
+        else:
+            loss = F.cross_entropy(logits, labels)
+
+        acc = torchmetrics.functional.accuracy(logits, labels)
+        return loss, acc
