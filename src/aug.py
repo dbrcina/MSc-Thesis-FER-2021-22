@@ -1,12 +1,21 @@
-from torchvision.transforms import RandomPerspective, ToPILImage
+import argparse
 
-from datasets import ALPROCRDataset
+from PIL import Image
+from torchvision import transforms
 
-dataset = ALPROCRDataset("data_ocr/train", True)
 
-perspective = RandomPerspective(p=1.0)
-to_pil = ToPILImage()
+def main(args: argparse.Namespace) -> None:
+    image_path = args.image_path
 
-img = dataset[0][0]
-img = perspective(img)
-to_pil(img).show()
+    image = Image.open(image_path).convert("RGB")
+    transform = transforms.Compose([
+        transforms.RandomRotation(30, interpolation=transforms.InterpolationMode.BILINEAR),
+    ])
+    image_aug = transform(image)
+    image_aug.show()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("image_path", type=str, help="Path to a image.")
+    main(parser.parse_args())

@@ -8,20 +8,22 @@ import config
 from datasets import VAL_TRANSFORM_OD, VAL_TRANSFORM_OCR
 from models import ALPRLightningModule
 from PIL import Image
+import time
 
 def main(args: argparse.Namespace) -> None:
+    start_time = time.time()
     od_model = ALPRLightningModule.load_from_checkpoint(args.od_model_path)
     ocr_model = ALPRLightningModule.load_from_checkpoint(args.ocr_model_path)
 
     chars = list(string.digits + string.ascii_uppercase)
 
-    image = cv2.imread(args.image_path, cv2.IMREAD_GRAYSCALE)
-    x = VAL_TRANSFORM_OCR(Image.fromarray(image))
-    x: torch.Tensor = x[None, :, :, :]
-    prob = ocr_model.predict(x)
-    i = torch.argmax(prob, dim=1)
-    print(chars[i])
-    return
+    image = cv2.imread(args.image_path, cv2.IMREAD_COLOR)
+    # x = VAL_TRANSFORM_OCR(Image.fromarray(image))
+    # x: torch.Tensor = x[None, :, :, :]
+    # prob = ocr_model.predict(x)
+    # i = torch.argmax(prob, dim=1)
+    # print(chars[i])
+    # return
 
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     ss.setBaseImage(image)
@@ -49,9 +51,11 @@ def main(args: argparse.Namespace) -> None:
     x, y, w, h = lp_roi
     print(lp_prob)
     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+    print(time.time()-start_time)
     cv2.imshow("Test", image)
     cv2.waitKey()
     cv2.destroyAllWindows()
+
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\baza_slika\210503\P1010002.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\baza_slika\210503\P1010003.jpg"
 image_annot = os.path.splitext(image_path)[0] + ".csv"
 
 df = pd.read_csv(image_annot, index_col=0)
