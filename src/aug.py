@@ -1,16 +1,16 @@
 import argparse
 
 from PIL import Image
-from torchvision import transforms
+from torchvision.transforms import RandomRotation, InterpolationMode
+
+import config
 
 
 def main(args: argparse.Namespace) -> None:
     image_path = args.image_path
 
     image = Image.open(image_path).convert("RGB")
-    transform = transforms.Compose([
-        transforms.RandomRotation(30, interpolation=transforms.InterpolationMode.BILINEAR),
-    ])
+    transform = RandomRotation(degrees=config.ROTATION_ANGLE, interpolation=InterpolationMode.BILINEAR, expand=True)
     image_aug = transform(image)
     image_aug.show()
 

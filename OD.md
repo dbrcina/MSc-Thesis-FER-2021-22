@@ -9,6 +9,7 @@
 - [Faster R-CNN Object Detection with PyTorch](https://learnopencv.com/faster-r-cnn-object-detection-with-pytorch/)
 
 # Pyimagesearch
+
 - [PyTorch object detection with pre-trained networks](https://pyimagesearch.com/2021/08/02/pytorch-object-detection-with-pre-trained-networks/)
 - [Non-Maximum Suppression for Object Detection in Python](https://pyimagesearch.com/2014/11/17/non-maximum-suppression-object-detection-python/Ł)
 - [Turning any CNN image classifier into an object detector with Keras, TensorFlow, and OpenCV](https://pyimagesearch.com/2020/06/22/turning-any-cnn-image-classifier-into-an-object-detector-with-keras-tensorflow-and-opencv/)
@@ -24,3 +25,8 @@
 # CNNs
 
 - [A guide to convolution arithmetic for deep learning](https://arxiv.org/abs/1603.07285)
+
+# Towards machine learning
+
+- [RCNN Simplified](https://towardsmachinelearning.org/rcnn-simplified/)
+- [RCNN Family Simplified/](https://towardsmachinelearning.org/rcnn-family-simplified/)

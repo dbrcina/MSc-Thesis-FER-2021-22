@@ -25,24 +25,18 @@ def main(args: argparse.Namespace) -> None:
 
     model_hparams = {
         "n_classes": 1,
-        "groups": [3, 3, 3],
-        "c_hidden": [32, 64, 128]
+        "groups": [2, 2, 2],
+        "c_hidden": [16, 32, 64]
     }
     optimizer_hparams = {
-        "lr": 1e-1,
-        "momentum": 0.9,
-        "weight_decay": 1e-4
+        "lr": 1e-3,
+        "betas": (0.9, 0.999),
+        "weight_decay": 1e-2,
     }
-    lr_scheduler_hparams = {
-        "mode": "min",
-        "factor": 0.1,
-        "patience": 3,
-        "min_lr": 1e-7
-    }
-    model = ALPRLightningModule(model_hparams, optimizer_hparams, lr_scheduler_hparams)
+    model = ALPRLightningModule(model_hparams, optimizer_hparams)
 
     ckp_callback = ModelCheckpoint(dirpath=args.ckp_dir,
-                                   filename="od-{epoch:02d}-{val_loss:.2f}-{val_acc:.2f}",
+                                   filename="{epoch:02d}-{val_loss:.2f}-{val_acc:.2f}",
                                    monitor="val_loss",
                                    save_weights_only=True)
     callbacks = [ckp_callback]

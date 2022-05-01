@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 from PIL import Image
 from sklearn import model_selection
-from torchvision import transforms
+from torchvision.transforms import InterpolationMode, RandomRotation, RandomPerspective
 
 import config
 import utils
@@ -35,6 +35,12 @@ def _save_results(X: np.ndarray,
     return positives, negatives
 
 
+def _resize_and_save(roi: np.ndarray, data: List[np.ndarray], labels: List[int], label: int) -> None:
+    roi = cv2.resize(roi, dsize=config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
+    data.append(roi)
+    labels.append(label)
+
+
 def _generate_samples(image: np.ndarray,
                       bbs_ious: List[Tuple[Tuple[int, ...], float]],
                       data: List[np.ndarray],
@@ -47,22 +53,19 @@ def _generate_samples(image: np.ndarray,
     for x, y, w, h in bbs:
         roi = image[y:y + h, x:x + w]
 
-        data.append(roi)
-        labels.append(label)
+        _resize_and_save(roi, data, labels, label)
 
         if label == config.POSITIVE_LABEL:
             roi_pil = Image.fromarray(roi)
             for transform in transform_list:
                 roi = transform(roi_pil)
                 roi = np.array(roi)
-                roi = cv2.resize(roi, dsize=config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
-                data.append(roi)
-                labels.append(label)
+                _resize_and_save(roi, data, labels, label)
 
 
-def _generate_data_for_image(image: np.ndarray,
-                             gt_bb: Tuple[int, ...],
-                             transform_list: List[object]) -> Tuple[np.ndarray, ...]:
+def _generate_data_for_image2(image: np.ndarray,
+                              gt_bb: Tuple[int, ...],
+                              transform_list: List[object]) -> Tuple[np.ndarray, ...]:
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     ss.setBaseImage(image)
     ss.switchToSelectiveSearchFast()
@@ -104,6 +107,45 @@ def _generate_data_for_image(image: np.ndarray,
     return X_train, X_val, y_train, y_val
 
 
+def _generate_data_for_image(image: np.ndarray, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, ...]:
+    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
+    ss.setBaseImage(image)
+    ss.switchToSelectiveSearchFast()
+    rp_bbs = ss.process()
+
+    positives = 0
+    negatives = 0
+    data = []
+    labels = []
+
+    for x, y, w, h in rp_bbs:
+        if positives >= config.MAX_POSITIVE_SAMPLES and negatives >= config.MAX_NEGATIVE_SAMPLES:
+            break
+
+        rp_bb = (x, y, x + w, y + h)
+        iou = utils.calculate_iou(gt_bb, rp_bb)
+        if iou >= config.IOU_POSITIVE and positives < config.MAX_POSITIVE_SAMPLES:
+            label = config.POSITIVE_LABEL
+            positives += 1
+        elif iou <= config.IOU_NEGATIVE and negatives < config.MAX_NEGATIVE_SAMPLES:
+            label = config.NEGATIVE_LABEL
+            negatives += 1
+        else:
+            continue
+
+        roi = image[y:y + h, x:x + w]
+        resized_roi = cv2.resize(roi, dsize=config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
+
+        data.append(resized_roi)
+        labels.append(label)
+
+    X_train, X_val, y_train, y_val = model_selection.train_test_split(np.array(data), np.array(labels),
+                                                                      test_size=config.TRAIN_VAL_SPLIT,
+                                                                      random_state=config.RANDOM_SEED)
+
+    return X_train, X_val, y_train, y_val
+
+
 # BGR -> YCrCb -> clahe(Y) -> YCrCb -> BGR
 def _preprocess_image(image_path: str, clahe: cv2.CLAHE) -> np.ndarray:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
@@ -121,11 +163,15 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
     total_positives_val = 0
     total_negatives_val = 0
 
-    clahe = cv2.createCLAHE(clipLimit=config.CLAHE_CLIP_LIMIT, tileGridSize=config.CLAHE_TILE_GRID_SIZE)
+    clahe = cv2.createCLAHE(config.CLAHE_CLIP_LIMIT, config.CLAHE_TILE_GRID_SIZE)
     transform_list = [
-        transforms.RandomRotation(config.RANDOM_ROTATION, interpolation=transforms.InterpolationMode.BILINEAR,
-                                  expand=True),
-        transforms.RandomPerspective(p=1.0, distortion_scale=0.2)]
+        RandomRotation(degrees=config.ROTATION_ANGLE,
+                       interpolation=InterpolationMode.BILINEAR,
+                       expand=True),
+        RandomPerspective(distortion_scale=0.2,
+                          p=1.0,
+                          interpolation=InterpolationMode.BILINEAR)
+    ]
 
     counter = 0
     for dirpath, _, filenames in os.walk(base_path):
@@ -136,7 +182,6 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
             start_time = time.time()
 
             image_path = utils.join_multiple_paths(dirpath, filename)
-            image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\baza_slika\070603\P6070075.jpg"
             counter += 1
             print(f"{counter}.) processing '{image_path}' and saving...")
             image = _preprocess_image(image_path, clahe)
@@ -145,7 +190,7 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
             df_gt = pd.read_csv(gt_path, index_col=0)
             gt_bb = next(iter(df_gt[["x1", "y1", "x2", "y2"]].itertuples(index=False, name=None)))
 
-            X_train, X_val, y_train, y_val = _generate_data_for_image(image, gt_bb, transform_list)
+            X_train, X_val, y_train, y_val = _generate_data_for_image(image, gt_bb)
 
             counters = _save_results(X_train, y_train, train_path, total_positives_train, total_negatives_train)
             total_positives_train = counters[0]
@@ -156,12 +201,6 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
             total_negatives_val = counters[1]
 
             print(f"  Time elapsed: {(time.time() - start_time)}s.")
-
-            if counter == 1:
-                break
-
-        if counter == 1:
-            break
 
     total_train = total_positives_train + total_negatives_train
     total_val = total_positives_val + total_negatives_val

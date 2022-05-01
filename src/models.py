@@ -5,6 +5,47 @@ import torch
 import torchmetrics
 from torch import nn, optim
 from torch.nn import functional as F
+from torchvision.models import alexnet
+
+
+class ALPROCRLightningModule(pl.LightningModule):
+    def __init__(self, optimizer_hparams: Dict[str, Any] = None) -> None:
+        super().__init__()
+
+        self.save_hyperparameters()
+        self.model = alexnet(pretrained=False, num_classes=36)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.model(x)
+
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        logits = self(x)
+        return torch.softmax(logits, dim=1)
+
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), **self.hparams.optimizer_hparams)
+        return optimizer
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        loss, acc = self._step(batch)
+
+        self.log("train_loss", loss)
+        self.log("train_acc", acc, on_step=False, on_epoch=True)
+
+        return loss
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+        loss, acc = self._step(batch)
+
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_acc", acc, prog_bar=True)
+
+    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
+        x, labels = batch
+        logits = self(x)
+        loss = F.cross_entropy(logits, labels)
+        acc = torchmetrics.functional.accuracy(logits, labels)
+        return loss, acc
 
 
 class ResNetBlock(nn.Module):
@@ -63,7 +104,7 @@ class ResNet(nn.Module):
 
         # Construct input layer.
         self.input_net = nn.Sequential(
-            nn.Conv2d(c_in, c_hidden[0], kernel_size=7, stride=2, padding=3, bias=False),
+            nn.Conv2d(c_in, c_hidden[0], kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(c_hidden[0]),
             act_fn,
         )
@@ -95,10 +136,7 @@ class ResNet(nn.Module):
 
 
 class ALPRLightningModule(pl.LightningModule):
-    def __init__(self,
-                 model_hparams: Dict[str, Any],
-                 optimizer_hparams: Dict[str, Any],
-                 lr_scheduler_hparams: Dict[str, Any]) -> None:
+    def __init__(self, model_hparams: Dict[str, Any], optimizer_hparams: Dict[str, Any] = None) -> None:
         super().__init__()
 
         self.save_hyperparameters()
@@ -117,16 +155,8 @@ class ALPRLightningModule(pl.LightningModule):
         return torch.softmax(logits, dim=1)
 
     def configure_optimizers(self):
-        optimizer = optim.SGD(self.parameters(), **self.hparams.optimizer_hparams)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, **self.hparams.lr_scheduler_hparams)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "epoch",
-                "monitor": "val_loss"
-            },
-        }
+        optimizer = optim.AdamW(self.parameters(), **self.hparams.optimizer_hparams)
+        return optimizer
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         loss, acc = self._step(batch)

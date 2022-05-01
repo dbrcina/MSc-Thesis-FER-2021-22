@@ -4,27 +4,24 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
-# TODO: Add augmentation?
 TRAIN_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2799, 0.2816, 0.2866])
+    # transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2856, 0.2837, 0.2875])
 ])
 
 VAL_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.2799, 0.2816, 0.2866], [0.2799, 0.2816, 0.2866])
+    # transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2856, 0.2837, 0.2875])
 ])
 
 TRAIN_TRANSFORM_OCR = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Grayscale(),
-    transforms.Normalize(0.3757, 0.4676)
+    # transforms.Normalize(0.3757, 0.4676)
 ])
 
 VAL_TRANSFORM_OCR = transforms.Compose([
-    transforms.Grayscale(),
     transforms.ToTensor(),
-    transforms.Normalize(0.3757, 0.4676)
+    # transforms.Normalize(0.3757, 0.4676)
 ])
 
 
