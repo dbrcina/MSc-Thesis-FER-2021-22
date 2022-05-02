@@ -1,15 +1,15 @@
 import argparse
+import string
 import time
 
 import cv2
+from PIL import Image
 
 import config
 from datasets import VAL_TRANSFORM_OD, VAL_TRANSFORM_OCR
-from PIL import Image
-from models import ALPRLightningModule
+from train import ALPRLightningModule
 
 
-import string
 def main(args: argparse.Namespace) -> None:
     start_time = time.time()
     # od_model = ALPRLightningModule.load_from_checkpoint(args.od_model_path)
@@ -17,9 +17,10 @@ def main(args: argparse.Namespace) -> None:
 
     chars = [c for c in list(string.digits + string.ascii_uppercase)]
 
-    im = Image.open(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data_ocr\train\class_H\class_H_21.jpg").convert("RGB")
+    im = Image.open(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data_ocr\train\class_H\class_H_21.jpg").convert(
+        "RGB")
     t = VAL_TRANSFORM_OCR(im)
-    t = t[None,:,:,:]
+    t = t[None, :, :, :]
     preds = ocr_model.predict(t)
     i = preds.argmax(dim=1)
     print(preds[0][i])

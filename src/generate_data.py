@@ -2,15 +2,13 @@ import argparse
 import os
 import random
 import time
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple
 
 import cv2
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
 from sklearn import model_selection
-from torchvision.transforms import InterpolationMode, RandomRotation, RandomPerspective
 
 import config
 import utils
@@ -33,78 +31,6 @@ def _save_results(X: np.ndarray,
         cv2.imwrite(filename, x)
 
     return positives, negatives
-
-
-def _resize_and_save(roi: np.ndarray, data: List[np.ndarray], labels: List[int], label: int) -> None:
-    roi = cv2.resize(roi, dsize=config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
-    data.append(roi)
-    labels.append(label)
-
-
-def _generate_samples(image: np.ndarray,
-                      bbs_ious: List[Tuple[Tuple[int, ...], float]],
-                      data: List[np.ndarray],
-                      labels: List[int],
-                      label: int,
-                      transform_list: List[object] = None) -> None:
-    # Remove iou
-    bbs = list(map(lambda bb_iou: bb_iou[0], bbs_ious))
-
-    for x, y, w, h in bbs:
-        roi = image[y:y + h, x:x + w]
-
-        _resize_and_save(roi, data, labels, label)
-
-        if label == config.POSITIVE_LABEL:
-            roi_pil = Image.fromarray(roi)
-            for transform in transform_list:
-                roi = transform(roi_pil)
-                roi = np.array(roi)
-                _resize_and_save(roi, data, labels, label)
-
-
-def _generate_data_for_image2(image: np.ndarray,
-                              gt_bb: Tuple[int, ...],
-                              transform_list: List[object]) -> Tuple[np.ndarray, ...]:
-    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
-    ss.setBaseImage(image)
-    ss.switchToSelectiveSearchFast()
-    rp_bbs = ss.process()
-
-    # Map bbs to (bb, iou)
-    rp_bbs_ious = list(
-        map(lambda bb: (
-            (bb[0], bb[1], bb[2], bb[3]),
-            utils.calculate_iou(gt_bb, (bb[0], bb[1], bb[0] + bb[2], bb[1] + bb[3]))
-        ),
-            rp_bbs)
-    )
-
-    # Sort by iou reversed
-    rp_bbs_ious_sorted = sorted(rp_bbs_ious, key=lambda bb_iou: bb_iou[1], reverse=True)
-
-    # Retrieve positive and negative examples
-    positives = list(
-        filter(lambda bb_iou: bb_iou[1] >= config.IOU_POSITIVE, rp_bbs_ious_sorted[:config.MAX_POSITIVE_SAMPLES])
-    )
-    negatives = list(
-        filter(lambda bb_iou: bb_iou[1] <= config.IOU_NEGATIVE, rp_bbs_ious_sorted)
-    )
-    random.shuffle(negatives)
-    negatives = negatives[:config.MAX_NEGATIVE_SAMPLES]
-
-    data = []
-    labels = []
-
-    _generate_samples(image, positives, data, labels, config.POSITIVE_LABEL, transform_list)
-    _generate_samples(image, negatives, data, labels, config.NEGATIVE_LABEL)
-
-    X_train, X_val, y_train, y_val = model_selection.train_test_split(np.array(data), np.array(labels),
-                                                                      test_size=config.TRAIN_VAL_SPLIT,
-                                                                      random_state=config.RANDOM_SEED,
-                                                                      stratify=labels)
-
-    return X_train, X_val, y_train, y_val
 
 
 def _generate_data_for_image(image: np.ndarray, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, ...]:
@@ -164,14 +90,6 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
     total_negatives_val = 0
 
     clahe = cv2.createCLAHE(config.CLAHE_CLIP_LIMIT, config.CLAHE_TILE_GRID_SIZE)
-    transform_list = [
-        RandomRotation(degrees=config.ROTATION_ANGLE,
-                       interpolation=InterpolationMode.BILINEAR,
-                       expand=True),
-        RandomPerspective(distortion_scale=0.2,
-                          p=1.0,
-                          interpolation=InterpolationMode.BILINEAR)
-    ]
 
     counter = 0
     for dirpath, _, filenames in os.walk(base_path):

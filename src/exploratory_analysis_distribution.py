@@ -1,5 +1,4 @@
 import argparse
-import os
 
 import torch
 from torch.utils.data import DataLoader
@@ -10,9 +9,6 @@ from torchvision.transforms import ToTensor
 # https://towardsdatascience.com/how-to-calculate-the-mean-and-standard-deviation-normalizing-datasets-in-pytorch-704bd7d05f4c
 def main(args: argparse.Namespace) -> None:
     path = args.path
-    if not os.path.isdir(path):
-        print(f"Provided '{path}' is not a directory!")
-        exit(-1)
 
     print(f"Reading images from '{path}' into memory and calculating mean and std:")
 

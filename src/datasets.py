@@ -6,22 +6,24 @@ from torchvision import datasets, transforms
 
 TRAIN_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    # transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2856, 0.2837, 0.2875])
+    transforms.Normalize([0.5175, 0.5102, 0.5088], [0.2738, 0.2748, 0.2783])
 ])
 
 VAL_TRANSFORM_OD = transforms.Compose([
     transforms.ToTensor(),
-    # transforms.Normalize([0.4334, 0.4249, 0.4232], [0.2856, 0.2837, 0.2875])
+    transforms.Normalize([0.5175, 0.5102, 0.5088], [0.2738, 0.2748, 0.2783])
 ])
 
 TRAIN_TRANSFORM_OCR = transforms.Compose([
+    transforms.Grayscale(),
     transforms.ToTensor(),
-    # transforms.Normalize(0.3757, 0.4676)
+    transforms.Normalize(0.3757, 0.4676)
 ])
 
 VAL_TRANSFORM_OCR = transforms.Compose([
+    transforms.Grayscale(),
     transforms.ToTensor(),
-    # transforms.Normalize(0.3757, 0.4676)
+    transforms.Normalize(0.3757, 0.4676)
 ])
 
 
