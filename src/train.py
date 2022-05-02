@@ -97,8 +97,8 @@ def create_trainer_and_fit(args: Dict[str, Any]) -> pl.Trainer:
     train_path = os.path.join(data_path, config.TRAIN_PATH)
     val_path = os.path.join(data_path, config.VAL_PATH)
 
-    train_dataset = dataset_class(train_path, True)
-    val_dataset = dataset_class(val_path, False)
+    train_dataset = dataset_class(train_path, train=True)
+    val_dataset = dataset_class(val_path, train=False)
     train_dataloader = DataLoader(train_dataset, batch_size=args["train_batch_size"], shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=args["val_batch_size"])
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
             },
             "optimizer_name": "sgd",
             "optimizer_hparams": {
-                "lr": 1e-2,
+                "lr": 1,
                 # "momentum": 0.9,
                 # "betas": (0.9, 0.999),
                 # "weight_decay": 1e-4
