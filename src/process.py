@@ -1,10 +1,12 @@
 import os
 
 import cv2
-import numpy as np
 import pandas as pd
 
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\baza_slika\210503\P1010003.jpg"
+import config
+from transform import four_point_transform
+
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\baza_slika\040603\P1010001.jpg"
 image_annot = os.path.splitext(image_path)[0] + ".csv"
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -14,8 +16,39 @@ y = df["y1"][0]
 w = df["x2"][0] - x
 h = df["y2"][0] - y
 
-image = cv2.imread(image_path)
+image = cv2.imread(image_path, cv2.IMREAD_COLOR)
 lp = image[y:y + h, x:x + w]
+
+ycrcb_image = cv2.cvtColor(lp, cv2.COLOR_BGR2YCrCb)
+y, cr, cb = cv2.split(ycrcb_image)
+clahe = cv2.createCLAHE(config.CLAHE_LP_CLIP_LIMIT, config.CLAHE_LP_GRID_SIZE)
+clahe_y = clahe.apply(y)
+clahe_img = cv2.merge((clahe_y, cr, cb))
+lp_updated = cv2.cvtColor(clahe_img, cv2.COLOR_YCrCb2BGR)
+
+gray = cv2.cvtColor(lp_updated, cv2.COLOR_BGR2GRAY)
+bilateral = cv2.bilateralFilter(gray,
+                                d=config.BILATERAL_D,
+                                sigmaColor=config.BILATERAL_SIGMA_COLOR,
+                                sigmaSpace=config.BILATERAL_SIGMA_SPACE)
+
+thresh = cv2.threshold(bilateral, thresh=0, maxval=255, type=cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+
+cnts = cv2.findContours(thresh, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)[0]
+
+c = None
+
+for cnt in sorted(cnts, key=cv2.contourArea, reverse=True):
+    approx = cv2.approxPolyDP(cnt, epsilon=cv2.arcLength(cnt, closed=True) * 0.02, closed=True)
+    if len(approx) == 4:
+        c = approx
+        break
+
+t = four_point_transform(thresh, c.reshape(4,2))
+cv2.imshow("test", t)
+cv2.imshow("lp", thresh)
+cv2.waitKey()
+exit()
 
 gray = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
 blur = cv2.GaussianBlur(gray, ksize=(5, 5), sigmaX=0)
