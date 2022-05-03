@@ -1,12 +1,17 @@
 import argparse
+import string
 import time
+from operator import itemgetter
 from typing import Dict, Any
 
 import cv2
+import torch
+from PIL import Image
 
 import config
-from datasets import VAL_TRANSFORM_OD
+from datasets import VAL_TRANSFORM_OD, VAL_TRANSFORM_OCR
 from train import ALPRLightningModule
+from transform import four_point_transform
 
 
 def main(args: Dict[str, Any]) -> None:
@@ -15,22 +20,10 @@ def main(args: Dict[str, Any]) -> None:
     od_model = ALPRLightningModule.load_from_checkpoint(args["od_model_path"])
     ocr_model = ALPRLightningModule.load_from_checkpoint(args["ocr_model_path"])
     image_path = args["image_path"]
-    #
-    # chars = [c for c in list(string.digits + string.ascii_uppercase)]
-    #
-    # im = Image.open(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data_ocr\train\class_8\class_8_2.jpg").convert(
-    #     "RGB")
-    # t = VAL_TRANSFORM_OCR(im)
-    # t = t[None, :, :, :]
-    # preds = ocr_model.predict(t)
-    # i = preds.argmax(dim=1)
-    # print(preds[0][i])
-    # print(chars[i])
-    # return
 
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if image.shape[:2] != (config.IMG_HEIGHT, config.IMG_WIDTH):
-        image = cv2.resize(image, dsize=(config.IMG_HEIGHT, config.IMG_WIDTH), interpolation=cv2.INTER_CUBIC)
+        image = cv2.resize(image, dsize=(config.IMG_WIDTH, config.IMG_HEIGHT), interpolation=cv2.INTER_CUBIC)
 
     ycrcb_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
     y, cr, cb = cv2.split(ycrcb_image)
@@ -48,23 +41,73 @@ def main(args: Dict[str, Any]) -> None:
     lp_roi = None
     lp_prob = 0
 
-    for x, y, w, h in rp_bbs[:config.MAX_INFERENCE_SAMPLES]:
-        roi = rgb_image[y:y + h, x:x + w]
-        roi = cv2.resize(roi, config.RCNN_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
-        roi = VAL_TRANSFORM_OD(roi)
-        roi = roi[None, :, :, :]
-        prob = od_model.predict(roi)
-        if prob > 0.5:
-            if prob > lp_prob:
-                lp_prob = prob
-                lp_roi = (x, y, w, h)
+    resized = list(
+        map(lambda bb: cv2.resize(rgb_image[bb[1]:bb[1] + bb[3], bb[0]:bb[0] + bb[2]], config.RCNN_INPUT_DIM,
+                                  interpolation=cv2.INTER_CUBIC),
+            rp_bbs[:config.MAX_INFERENCE_SAMPLES])
+    )
+    x = torch.stack([VAL_TRANSFORM_OD(r) for r in resized])
+    preds = od_model.predict(x)
+
+    index = preds.argmax()
+    lp_prob = preds[index]
+    if lp_prob > 0.5:
+        lp_roi = rp_bbs[index]
 
     if lp_roi is None:
         print("Didn't manage to find license plate.")
         return
 
     x, y, w, h = lp_roi
+    lp = image[y:y + h, x:x + w]
+
+    gray = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
+    bilateral = cv2.bilateralFilter(gray,
+                                    d=config.BILATERAL_D,
+                                    sigmaColor=config.BILATERAL_SIGMA_COLOR,
+                                    sigmaSpace=config.BILATERAL_SIGMA_SPACE)
+
+    thresh = cv2.threshold(bilateral, thresh=0, maxval=255, type=cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    erode = cv2.erode(thresh, (5,5))
+    cv2.imshow("test", erode)
+    cv2.waitKey()
+    return
+
+    cnts = cv2.findContours(thresh, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)[0]
+
+    c = None
+
+    for cnt in sorted(cnts, key=cv2.contourArea, reverse=True):
+        approx = cv2.approxPolyDP(cnt, epsilon=cv2.arcLength(cnt, closed=True) * 0.02, closed=True)
+        if len(approx) == 4:
+            c = approx
+            break
+
+    transformed = four_point_transform(thresh, c.reshape(4, 2))
+    morph = cv2.erode(transformed, (5, 5), iterations=1)
+
+    cv2.imshow("test", morph)
+    cv2.waitKey()
+    return
+
+    cnts = cv2.findContours(morph, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)[0]
+    cts = []
+    for cnt in sorted(cnts, key=lambda c: cv2.boundingRect(c)[0]):
+        x, y, w, h = cv2.boundingRect(cnt)
+        if abs(cv2.contourArea(cnt)) < 100 or w > h or h < 10:
+            continue
+        char_img = morph[y:y + h, x:x + w]
+        char_img = cv2.resize(char_img, dsize=config.OCR_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
+        cts.append(char_img)
+
+    x = torch.stack([VAL_TRANSFORM_OCR(Image.fromarray(s)) for s in cts])
+    y = ocr_model.predict(x)
+    CHARACTERS = {i: c for i, c in enumerate(list(string.digits + string.ascii_uppercase))}
+    predicted_lp = "".join(itemgetter(*torch.argmax(y, dim=1).tolist())(CHARACTERS))
+
+    x, y, w, h = lp_roi
     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+    cv2.putText(image, predicted_lp, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
     print(lp_prob)
     cv2.imshow("Test", image)
     print(f"Time elapsed: {time.time() - start_time}s")
