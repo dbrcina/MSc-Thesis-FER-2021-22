@@ -4,3 +4,6 @@ venv
 baza_slika*
 data_od*
 data_ocr*
+pl_od
+pl_ocr
+*.ckpt

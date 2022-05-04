@@ -15,14 +15,14 @@ VAL_TRANSFORM_OD = transforms.Compose([
 ])
 
 TRAIN_TRANSFORM_OCR = transforms.Compose([
-    transforms.Grayscale(),
     transforms.ToTensor(),
+    transforms.Grayscale(),
     transforms.Normalize(0.3757, 0.4676)
 ])
 
 VAL_TRANSFORM_OCR = transforms.Compose([
-    transforms.Grayscale(),
     transforms.ToTensor(),
+    transforms.Grayscale(),
     transforms.Normalize(0.3757, 0.4676)
 ])
 
