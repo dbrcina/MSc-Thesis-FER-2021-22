@@ -1,0 +1,9 @@
+model_hparams:
+  dropout: 0.5
+  n_classes: 1
+model_name: alexnet
+optimizer_hparams:
+  lr: 0.01
+  momentum: 0.9
+  weight_decay: 0.0001
+optimizer_name: sgd

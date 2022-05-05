@@ -1,9 +1,6 @@
 .idea/
 __pycache__
 venv
-baza_slika*
+baza_slika
+data_ocr
 data_od*
-data_ocr*
-pl_od
-pl_ocr
-*.ckpt
