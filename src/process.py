@@ -110,7 +110,7 @@ display("ther", th)
 #         cv2.destroyWindow("TESTEST")
 #
 # x = torch.stack([VAL_TRANSFORM_OCR(Image.fromarray(s)) for s in cts])
-# model = ALPRLightningModule.load_from_checkpoint("pl_ocr/models/epoch=96-val_loss=0.11-val_acc=0.97.ckpt")
+# model = ALPRLightningModule.load_from_checkpoint("ocr/models/epoch=96-val_loss=0.11-val_acc=0.97.ckpt")
 # y = model.predict(x)
 # CHARACTERS = {i: c for i, c in enumerate(list(string.digits + string.ascii_uppercase))}
 # predicted_lp = "".join(itemgetter(*torch.argmax(y, dim=1).tolist())(CHARACTERS))

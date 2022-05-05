@@ -136,9 +136,9 @@ if __name__ == "__main__":
                 # "weight_decay": 1e-4
             }
         },
-        "ckp_dir": "pl_ocr/models",
+        "ckp_dir": "ocr/models",
         "trainer": {
-            "default_root_dir": "pl_ocr",
+            "default_root_dir": "ocr",
             # "gpus": 1,
             "max_epochs": 10
         }
