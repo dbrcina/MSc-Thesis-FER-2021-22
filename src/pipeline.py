@@ -1,123 +1,122 @@
-import argparse
 import string
 import time
-from operator import itemgetter
-from typing import Dict, Any
+from typing import Tuple
 
 import cv2
+import numpy as np
 import torch
-from PIL import Image
 
 import config
+import utils
 from datasets import VAL_TRANSFORM_OD, VAL_TRANSFORM_OCR
 from train import ALPRLightningModule
-from transform import four_point_transform
+
+CHARACTERS = list(string.digits + string.ascii_uppercase)
 
 
-def main(args: Dict[str, Any]) -> None:
+def alpr_pipeline(image: np.ndarray,
+                  od_model: ALPRLightningModule,
+                  ocr_model: ALPRLightningModule,
+                  debug: bool = True) -> Tuple[float, Tuple[int, ...], str]:
     start_time = time.time()
 
-    od_model = ALPRLightningModule.load_from_checkpoint(args["od_model_path"])
-    ocr_model = ALPRLightningModule.load_from_checkpoint(args["ocr_model_path"])
-    image_path = args["image_path"]
+    # RGB -> BGR
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-    image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    if image.shape[:2] != (config.IMG_HEIGHT, config.IMG_WIDTH):
-        image = cv2.resize(image, dsize=(config.IMG_WIDTH, config.IMG_HEIGHT), interpolation=cv2.INTER_CUBIC)
+    # CLAHE
+    image = utils.apply_clahe(image)
 
-    ycrcb_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
-    y, cr, cb = cv2.split(ycrcb_image)
-    clahe = cv2.createCLAHE(config.CLAHE_CLIP_LIMIT, config.CLAHE_TILE_GRID_SIZE)
-    clahe_y = clahe.apply(y)
-    clahe_img = cv2.merge((clahe_y, cr, cb))
-    updated_image = cv2.cvtColor(clahe_img, cv2.COLOR_YCrCb2BGR)
+    # Object detection.
+    locate_lp_start_time = time.time()
+    lp_prob, lp_bb = locate_lp(image, od_model, debug)
+    if debug:
+        print(f"Elapsed time 'locate_lp': {time.time() - locate_lp_start_time:.2f}s.")
+        print(f"License plate probability: {lp_prob:.3f}.")
 
-    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
-    ss.setBaseImage(updated_image)
-    ss.switchToSelectiveSearchFast()
-    rp_bbs = ss.process()
+    # OCR
+    lp_ocr_start_time = time.time()
+    lp = lp_ocr(image, lp_bb, ocr_model, debug)
+    if debug:
+        print(f"Elapsed time 'lp_ocr': {time.time() - lp_ocr_start_time:.2f}s.")
 
-    rgb_image = cv2.cvtColor(updated_image, cv2.COLOR_BGR2RGB)
-    lp_roi = None
-    lp_prob = 0
+    if debug:
+        print(f"Elapsed time 'alpr_pipeline': {time.time() - start_time:.2f}s.")
 
-    resized = list(
-        map(lambda bb: cv2.resize(rgb_image[bb[1]:bb[1] + bb[3], bb[0]:bb[0] + bb[2]], config.RCNN_INPUT_DIM,
-                                  interpolation=cv2.INTER_CUBIC),
-            rp_bbs[:config.MAX_INFERENCE_SAMPLES])
-    )
-    x = torch.stack([VAL_TRANSFORM_OD(r) for r in resized])
-    preds = od_model.predict(x)
+    return lp_prob, lp_bb, lp
 
-    index = preds.argmax()
-    lp_prob = preds[index]
-    if lp_prob > 0.5:
-        lp_roi = rp_bbs[index]
 
-    if lp_roi is None:
-        print("Didn't manage to find license plate.")
-        return
+def locate_lp(image: np.ndarray, od_model: ALPRLightningModule, debug: bool) -> Tuple[float, Tuple[int, ...]]:
+    # Selective search
+    selective_search_start_time = time.time()
+    rp_bbs = utils.apply_selective_search(image)[:config.MAX_INFERENCE_SAMPLES]
+    if debug:
+        print(f"Elapsed time 'locate_lp::selective_search': {time.time() - selective_search_start_time:.2f}s.")
 
-    x, y, w, h = lp_roi
-    lp = image[y:y + h, x:x + w]
+    # BGR -> RGB
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    gray = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
-    bilateral = cv2.bilateralFilter(gray,
-                                    d=config.BILATERAL_D,
-                                    sigmaColor=config.BILATERAL_SIGMA_COLOR,
-                                    sigmaSpace=config.BILATERAL_SIGMA_SPACE)
+    # Prepare input for od.
+    prepare_input_start_time = time.time()
+    od_input = torch.stack([
+        VAL_TRANSFORM_OD(
+            cv2.resize(image[y:y + h, x:x + w], config.OD_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
+        for x, y, w, h in rp_bbs])
+    if debug:
+        print(f"Elapsed time 'locate_lp::prepare_od_input': {time.time() - prepare_input_start_time:.2f}s.")
 
-    thresh = cv2.threshold(bilateral, thresh=0, maxval=255, type=cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-    erode = cv2.erode(thresh, (5,5))
-    cv2.imshow("test", erode)
-    cv2.waitKey()
-    return
+    # Predict license plate.
+    predict_start_time = time.time()
+    lp_preds = od_model.predict(od_input)
+    if debug:
+        print(f"Elapsed time 'locate_lp::predict': {time.time() - predict_start_time:.2f}s.")
 
-    cnts = cv2.findContours(thresh, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)[0]
+    index = lp_preds.argmax()
+    lp_prob = lp_preds[index].item()
+    lp_bb = rp_bbs[index]
+    return lp_prob, lp_bb
 
-    c = None
 
-    for cnt in sorted(cnts, key=cv2.contourArea, reverse=True):
-        approx = cv2.approxPolyDP(cnt, epsilon=cv2.arcLength(cnt, closed=True) * 0.02, closed=True)
-        if len(approx) == 4:
-            c = approx
-            break
+def lp_ocr(image: np.ndarray, lp_bb: Tuple[int, ...], ocr_model: ALPRLightningModule, debug: bool) -> str:
+    x, y, w, h = lp_bb
+    image = image[y:y + h, x:x + w]
 
-    transformed = four_point_transform(thresh, c.reshape(4, 2))
-    morph = cv2.erode(transformed, (5, 5), iterations=1)
+    # Preprocessing
+    preprocess_start_time = time.time()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
+    if debug:
+        print(f"Elapsed time 'lp_ocr::preprocess': {time.time() - preprocess_start_time:.2f}s.")
 
-    cv2.imshow("test", morph)
-    cv2.waitKey()
-    return
-
-    cnts = cv2.findContours(morph, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)[0]
-    cts = []
-    for cnt in sorted(cnts, key=lambda c: cv2.boundingRect(c)[0]):
-        x, y, w, h = cv2.boundingRect(cnt)
-        if abs(cv2.contourArea(cnt)) < 100 or w > h or h < 10:
+    # Find contours
+    contours_start_time = time.time()
+    contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
+    contours_bbs = list(map(cv2.boundingRect, contours))
+    chars = []
+    for contour, (x, y, w, h) in sorted(zip(contours, contours_bbs), key=lambda x: (x[1][1], x[1][0])):
+        if abs(cv2.contourArea(contour)) < 100 or w > h or h < 10:
             continue
-        char_img = morph[y:y + h, x:x + w]
-        char_img = cv2.resize(char_img, dsize=config.OCR_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
-        cts.append(char_img)
+        chars.append(thresh[y:y + h, x:x + w])
+    if debug:
+        print(f"Elapsed time 'lp_ocr::contours': {time.time() - contours_start_time:.2f}s.")
 
-    x = torch.stack([VAL_TRANSFORM_OCR(Image.fromarray(s)) for s in cts])
-    y = ocr_model.predict(x)
-    CHARACTERS = {i: c for i, c in enumerate(list(string.digits + string.ascii_uppercase))}
-    predicted_lp = "".join(itemgetter(*torch.argmax(y, dim=1).tolist())(CHARACTERS))
+    if len(chars) == 0:
+        print("Didn't manage to find any character contours!")
+        return ""
 
-    x, y, w, h = lp_roi
-    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-    cv2.putText(image, predicted_lp, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
-    print(lp_prob)
-    cv2.imshow("Test", image)
-    print(f"Time elapsed: {time.time() - start_time}s")
-    cv2.waitKey()
-    cv2.destroyAllWindows()
+    # Prepare input for ocr.
+    prepare_input_start_time = time.time()
+    ocr_input = torch.stack([
+        VAL_TRANSFORM_OCR(cv2.cvtColor(
+            cv2.resize(c, dsize=config.OCR_INPUT_DIM, interpolation=cv2.INTER_CUBIC), cv2.COLOR_GRAY2RGB))
+        for c in chars])
+    if debug:
+        print(f"Elapsed time 'lp_ocr::prepare_ocr_input': {time.time() - prepare_input_start_time:.2f}s.")
 
+    # Predict characters.
+    predict_start_time = time.time()
+    char_preds = ocr_model.predict(ocr_input)
+    if debug:
+        print(f"Elapsed time 'lp_ocr::predict': {time.time() - predict_start_time:.2f}s.")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("od_model_path", type=str, help="Path to object detection model.")
-    parser.add_argument("ocr_model_path", type=str, help="Path to OCR model.")
-    parser.add_argument("image_path", type=str, help="Path to test image.")
-    main(vars(parser.parse_args()))
+    return "".join(list(map(lambda x: CHARACTERS[x], torch.argmax(char_preds, dim=1))))

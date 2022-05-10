@@ -94,8 +94,8 @@ class ALPRLightningModule(pl.LightningModule):
 def create_trainer_and_fit(args: Dict[str, Any]) -> pl.Trainer:
     data_path = args["data_path"]
     dataset_class = _DATASETS[args["dataset_name"]]
-    train_path = os.path.join(data_path, config.TRAIN_PATH)
-    val_path = os.path.join(data_path, config.VAL_PATH)
+    train_path = os.path.join(data_path, config.TRAIN_FOLDER)
+    val_path = os.path.join(data_path, config.VAL_FOLDER)
 
     train_dataset = dataset_class(train_path, train=True)
     val_dataset = dataset_class(val_path, train=False)
@@ -105,7 +105,7 @@ def create_trainer_and_fit(args: Dict[str, Any]) -> pl.Trainer:
     model = ALPRLightningModule(**args["alpr_module"])
 
     ckp_callback = ModelCheckpoint(dirpath=args["ckp_dir"],
-                                   filename="{epoch:02d}-{val_loss:.2f}-{val_acc:.2f}",
+                                   filename="{epoch:02d}-{val_loss:.3f}-{val_acc:.3f}",
                                    monitor="val_loss",
                                    save_weights_only=True)
 
