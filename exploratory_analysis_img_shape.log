@@ -1,0 +1,19 @@
+MIN:
+width     61
+height    27
+dtype: int64
+-------------
+MAX:
+width     284
+height    132
+dtype: int64
+-------------
+MEAN:
+width     204.45776
+height     48.78389
+dtype: float64
+-------------
+MEDIAN
+width     214.0
+height     45.0
+dtype: float64

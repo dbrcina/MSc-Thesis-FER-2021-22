@@ -1,5 +1,10 @@
+from typing import Tuple, Dict, Any
+
+import pytorch_lightning as pl
 import torch
-from torch import nn
+import torchmetrics
+from torch import nn, optim
+from torch.nn import functional as F
 
 
 class LeNet5(nn.Module):
@@ -96,3 +101,76 @@ class AlexNet(nn.Module):
         x = self.classifier(x)
 
         return x
+
+
+_MODELS = {
+    "lenet5": LeNet5,
+    "alexnet": AlexNet
+}
+
+_OPTIMIZERS = {
+    "sgd": optim.SGD,
+    "adamw": optim.AdamW
+}
+
+
+class ALPRLightningModule(pl.LightningModule):
+    def __init__(self,
+                 model_name: str,
+                 model_hparams: Dict[str, Any],
+                 optimizer_name: str,
+                 optimizer_hparams: Dict[str, Any]) -> None:
+        super().__init__()
+
+        self.save_hyperparameters()
+
+        self.model = _MODELS[model_name.lower()](**model_hparams)
+        self.optimizer = _OPTIMIZERS[optimizer_name.lower()](self.parameters(), **optimizer_hparams)
+
+        self.is_binary = model_hparams["n_classes"] == 1
+        if self.is_binary:
+            self.loss_with_logits = F.binary_cross_entropy_with_logits
+        else:
+            self.loss_with_logits = F.cross_entropy
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.model(x)
+
+    def configure_optimizers(self) -> optim.Optimizer:
+        return self.optimizer
+
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        logits = self(x)
+
+        if self.is_binary:
+            return torch.sigmoid(logits)
+
+        return torch.softmax(logits, dim=1)
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        loss, acc = self._step(batch)
+
+        self.log("train_loss", loss)
+        self.log("train_acc", acc, on_step=False, on_epoch=True)
+
+        return loss
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+        loss, acc = self._step(batch)
+
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_acc", acc, prog_bar=True)
+
+    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
+        x, labels = batch
+        logits = self(x)
+
+        loss = self._loss(logits, labels)
+        acc = torchmetrics.functional.accuracy(logits, labels)
+        return loss, acc
+
+    def _loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        if self.is_binary:
+            return self.loss_with_logits(logits.view(-1), labels.float())
+
+        return self.loss_with_logits(logits, labels)

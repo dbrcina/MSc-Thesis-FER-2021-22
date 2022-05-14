@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 
 import config
 import utils
+from pipeline import input_preprocessing, selective_search
 
 
 def _save_results(data: np.ndarray,
@@ -32,8 +33,8 @@ def _save_results(data: np.ndarray,
 
 def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, ...]:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    image = utils.apply_clahe(image)
-    rp_bbs = utils.apply_selective_search(image)
+    image = input_preprocessing(image)
+    rp_bbs = selective_search(image)
 
     positives = 0
     negatives = 0
@@ -143,9 +144,6 @@ def main(args: Dict[str, Any]) -> None:
         "positive": _create_dir(data_path, config.VAL_FOLDER, str(config.POSITIVE_LABEL)),
         "negative": _create_dir(data_path, config.VAL_FOLDER, str(config.NEGATIVE_LABEL)),
     }
-
-    cv2.useOptimized()
-    cv2.setNumThreads(os.cpu_count() - 1)
 
     total_train, total_val = _generate_data(base_path, train_path, val_path)
 

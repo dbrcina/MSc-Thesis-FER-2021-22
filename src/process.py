@@ -6,6 +6,7 @@ import pandas as pd
 
 import config
 import utils
+from pipeline import input_preprocessing, selective_search
 from src.transform import four_point_transform
 
 
@@ -15,7 +16,7 @@ def display(title: str, image: np.ndarray) -> None:
 
 
 DEBUG = True
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\170902\P9170046.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\040603\P6040034.jpg"
 image_annot = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -25,21 +26,95 @@ w = df["x2"][0] - x
 h = df["y2"][0] - y
 
 image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+bbs = selective_search(image)
+cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+display("Original", image)
+exit()
+updated = input_preprocessing(image)
+display("Updated", updated)
+
+exit()
+image = utils.apply_clahe(image)
 lp = image[y:y + h, x:x + w]
-display("Original", lp)
 
 gray = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
-bilateral = cv2.bilateralFilter(gray,
-                                d=15,
-                                sigmaColor=50,
-                                sigmaSpace=5)
-display("bilateral", bilateral)
+bilateral = cv2.bilateralFilter(gray, config.BILATERAL_D, config.BILATERAL_SIGMA_COLOR, config.BILATERAL_SIGMA_SPACE)
+gauss = cv2.GaussianBlur(gray, ksize=(5, 5), sigmaX=0)
+blur = cv2.blur(gray, (3, 3))
+display("filtered", bilateral)
 
 edged = utils.auto_canny(bilateral)
 display("Edged", edged)
 
-exit()
 
+def remap_func(line: np.ndarray):
+    x1, y1, x2, y2 = line
+    x1_new = 0
+    y1_new = (y2 - y1) / (x2 - x1) * (x1_new - x1) + y1
+    x2_new = w
+    y2_new = (y2 - y1) / (x2 - x1) * (x2_new - x2) + y2
+    return x1_new, y1_new, x2_new, y2_new
+
+
+def line_coef(line):
+    x1, y1, x2, y2 = line
+    A = y1 - y2
+    B = x2 - y1
+    C = x2 * y1 - x1 * y2
+    return A, B, C
+
+
+# CRAMER
+def compute_intersect(line1, line2):
+    A1, B1, C1 = line_coef(line1)
+    A2, B2, C2 = line_coef(line2)
+
+    def det(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+
+    div = det((A1, B1), (A2, B2))
+    if div == 0:
+        return -1, -1
+
+    x = det((C1, B1), (C2, B2)) / div
+    y = det((A1, C1), (A2, C2)) / div
+
+    return x, y
+
+
+line1 = [0, 1, 2, 3]
+line2 = [2, 3, 0, 4]
+
+R = compute_intersect(line1, line2)
+if R:
+    print("Intersection detected:", R)
+else:
+    print("No single intersection point detected")
+
+exit()
+lines = cv2.HoughLinesP(edged, 1, np.pi / 180, 100, maxLineGap=10)
+lines = lines.reshape(-1, 4)
+lines = list(map(remap_func, lines))
+lines = list(filter(lambda x: np.isfinite(x[1]) and np.isfinite(x[3]), lines))
+corners = []
+for i in range(0, len(lines)):
+    for j in range(i + 1, len(lines)):
+        point = compute_intersect(lines[i], lines[j])
+        if point[0] >= 0 and point[1] >= 0:
+            corners.append(point)
+
+corners = np.array(corners)
+approx = cv2.approxPolyDP(corners, cv2.arcLength(corners, True) * 0.02, True)
+print(len(approx))
+exit()
+if len(approx) != 4:
+    print(len(approx))
+
+for x1, y1, x2, y2 in lines:
+    cv2.line(lp, (x1, int(y1)), (x2, int(y2)), (0, 0, 255))
+
+display("LINES", lp)
+exit()
 
 contours = cv2.findContours(edged, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0]
 sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
@@ -141,14 +216,14 @@ gray = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
 if DEBUG:
     display("LP+Gray", gray)
 
-bilateral = cv2.bilateralFilter(gray,
-                                d=config.BILATERAL_D,
-                                sigmaColor=config.BILATERAL_SIGMA_COLOR,
-                                sigmaSpace=config.BILATERAL_SIGMA_SPACE)
+blur = cv2.bilateralFilter(gray,
+                           d=config.BILATERAL_D,
+                           sigmaColor=config.BILATERAL_SIGMA_COLOR,
+                           sigmaSpace=config.BILATERAL_SIGMA_SPACE)
 if DEBUG:
-    display("LP+Bilateral", bilateral)
+    display("LP+Bilateral", blur)
 
-th = cv2.adaptiveThreshold(bilateral, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
+th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
 display("LP+Thresh", th)
 
 cnts = cv2.findContours(th, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)[0]

@@ -4,23 +4,23 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 
-TRAIN_TRANSFORM_OD = transforms.Compose([
+od_transform_train = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.5018, 0.4936, 0.4925], [0.2868, 0.2877, 0.2906])
+    transforms.Normalize([0.4971, 0.4885, 0.4879], [0.2538, 0.2534, 0.2588])
 ])
 
-VAL_TRANSFORM_OD = transforms.Compose([
+od_transform_val = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.5018, 0.4936, 0.4925], [0.2868, 0.2877, 0.2906])
+    transforms.Normalize([0.4971, 0.4885, 0.4879], [0.2538, 0.2534, 0.2588])
 ])
 
-TRAIN_TRANSFORM_OCR = transforms.Compose([
+ocr_transform_train = transforms.Compose([
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize(0.3757, 0.4676)
 ])
 
-VAL_TRANSFORM_OCR = transforms.Compose([
+ocr_transform_val = transforms.Compose([
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize(0.3757, 0.4676)
@@ -40,9 +40,9 @@ class _ALPRDataset(Dataset):
 
 class ALPRODDataset(_ALPRDataset):
     def __init__(self, root: str, train: bool) -> None:
-        super().__init__(root, TRAIN_TRANSFORM_OD if train else VAL_TRANSFORM_OD)
+        super().__init__(root, od_transform_train if train else od_transform_val)
 
 
 class ALPROCRDataset(_ALPRDataset):
     def __init__(self, root: str, train: bool) -> None:
-        super().__init__(root, TRAIN_TRANSFORM_OCR if train else VAL_TRANSFORM_OCR)
+        super().__init__(root, ocr_transform_train if train else ocr_transform_val)
