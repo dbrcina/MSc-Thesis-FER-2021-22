@@ -5,6 +5,8 @@ import cv2
 import numpy as np
 import pandas as pd
 
+from models import ALPRLightningModule
+
 
 def join_multiple_paths(*paths: str) -> str:
     return os.path.join(*paths)
@@ -40,6 +42,12 @@ def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1
     area_bb2 = abs((bb2[2] - bb2[0]) * (bb2[3] - bb2[1]))
 
     return float(area_inter) / (area_bb1 + area_bb2 - area_inter + epsilon)
+
+
+def load_model(path: str) -> ALPRLightningModule:
+    model = ALPRLightningModule.load_from_checkpoint(path)
+    model.eval()
+    return model
 
 
 def auto_canny(image: np.ndarray, sigma: float = 0.33) -> np.ndarray:

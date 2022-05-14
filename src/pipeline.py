@@ -167,7 +167,16 @@ def alpr_pipeline(image: np.ndarray,
     # License Plate Detection
     lp_detection_start_time = time.time()
     lp_bbs = lp_detection(image, od_model, debug)
-    # TODO: Find best matching license plate from list of proposed?
+    lp_bbs = list(
+        filter(lambda bb: config.LP_WIDTH_MIN <= bb[2] <= config.LP_WIDTH_MAX and
+                          config.LP_HEIGHT_MIN <= bb[3] <= config.LP_HEIGHT_MAX,
+               lp_bbs)
+    )
+
+    if len(lp_bbs) == 0:
+        print("Didn't manage to find any license plate!")
+        return None
+
     lp_bb = lp_bbs[0]
     if debug:
         print(f"Elapsed time 'locate_lp': {time.time() - lp_detection_start_time:.2f}s.")
@@ -178,7 +187,6 @@ def alpr_pipeline(image: np.ndarray,
     lp = "ZG1228BH"
     if debug:
         print(f"Elapsed time 'lp_ocr': {time.time() - lp_ocr_start_time:.2f}s.")
-
-    print(f"Elapsed time 'alpr_pipeline': {time.time() - start_time:.2f}s.")
+        print(f"Elapsed time 'alpr_pipeline': {time.time() - start_time:.2f}s.")
 
     return lp_bb, lp

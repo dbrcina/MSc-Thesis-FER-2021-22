@@ -1,14 +1,14 @@
 import argparse
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 
 import cv2
 import numpy as np
 from PIL import ImageTk, Image
 
 import config
+import utils
 from pipeline import alpr_pipeline
-from train import ALPRLightningModule
 
 
 class ControlFrame(ttk.Frame):
@@ -16,11 +16,8 @@ class ControlFrame(ttk.Frame):
         super().__init__(container)
 
         self.image_canvas = image_canvas
-        self.od_model = ALPRLightningModule.load_from_checkpoint(od_path)
-        self.ocr_model = ALPRLightningModule.load_from_checkpoint(ocr_path)
-
-        self.od_model.eval()
-        self.ocr_model.eval()
+        self.od_model = utils.load_model(od_path)
+        self.ocr_model = utils.load_model(ocr_path)
 
         self._create_widgets()
 
@@ -49,13 +46,15 @@ class ControlFrame(ttk.Frame):
         self.image_canvas.create_image(0, 0, anchor="nw", image=self.tk_image)
 
     def _start(self) -> None:
-        print("Starting...")
-
         image_cpy = self.image.copy()
 
-        lp_prob, (lp_x, lp_y, lp_w, lp_h), lp = alpr_pipeline(image_cpy, self.od_model, self.ocr_model, debug=False)
+        result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR), self.od_model, self.ocr_model)
+        if result is None:
+            messagebox.showinfo("Information", "Didn't manage to find any license plate!")
 
-        cv2.rectangle(image_cpy, (lp_x, lp_y), (lp_x + lp_w, lp_y + lp_h), (255, 0, 0))
+        (lp_x, lp_y, lp_w, lp_h), lp = result
+
+        cv2.rectangle(image_cpy, (lp_x, lp_y), (lp_x + lp_w, lp_y + lp_h), (255, 0, 0), 2)
         (w, h), _ = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
         cv2.rectangle(image_cpy, (lp_x, lp_y - 20), (lp_x + w, lp_y), (255, 0, 0), -1)
         cv2.putText(image_cpy, lp, (lp_x, lp_y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)

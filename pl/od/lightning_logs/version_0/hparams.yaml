@@ -3,7 +3,9 @@ model_hparams:
   n_classes: 1
 model_name: alexnet
 optimizer_hparams:
-  lr: 0.01
-  momentum: 0.9
+  betas: !!python/tuple
+  - 0.9
+  - 0.999
+  lr: 0.001
   weight_decay: 0.0001
-optimizer_name: sgd
+optimizer_name: adamw
