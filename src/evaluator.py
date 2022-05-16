@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict
 
 import cv2
+from tqdm import tqdm
 
 import config
 import utils
@@ -25,14 +26,13 @@ def main(args: Dict[str, Any]) -> None:
     results = []
 
     for dirpath, _, filenames in os.walk(args["data_path"]):
-        for filename in filenames:
+        for filename in tqdm(filenames, desc=f"{dirpath}"):
             if not filename.endswith(config.IMG_EXTENSIONS):
                 continue
 
             n += 1
-            image_path = utils.join_multiple_paths(dirpath, filename)
-            print(f"{n}.) evaluating '{image_path}'...")
 
+            image_path = utils.join_multiple_paths(dirpath, filename)
             image = cv2.imread(image_path)
 
             result = alpr_pipeline(image, od_model, ocr_model)
@@ -44,9 +44,10 @@ def main(args: Dict[str, Any]) -> None:
 
             gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
             gt_bb = utils.read_ground_truth_bb(gt_path)
+            lp_bb = (lp_x, lp_y, lp_x + lp_w, lp_y + lp_h)
 
-            iou = utils.calculate_iou(gt_bb, (lp_x, lp_y, lp_x + lp_w, lp_y + lp_h))
-            if iou < config.IOU_POSITIVE:
+            iou = utils.calculate_iou(gt_bb, lp_bb)
+            if iou < 0.2:
                 results.append((image_path, iou))
 
             mean_iou = running_mean(mean_iou, iou, n)

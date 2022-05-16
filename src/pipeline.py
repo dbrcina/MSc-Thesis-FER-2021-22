@@ -1,6 +1,6 @@
 import string
 import time
-from typing import Tuple, List
+from typing import Tuple, Optional
 
 import cv2
 import numpy as np
@@ -15,7 +15,7 @@ CHARACTERS = list(string.digits + string.ascii_uppercase)
 
 def input_preprocessing(image: np.ndarray) -> np.ndarray:
     """
-    Performs image preprocessing on the provided image.
+    Performs image preprocessing for License Plate Detection on the provided image.
 
     :param image: BGR image.
     :return: Preprocessed image.
@@ -60,14 +60,14 @@ def selective_search(image: np.ndarray, fast: bool = True) -> np.ndarray:
     return rp_bbs
 
 
-def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = False) -> List[Tuple[int, ...]]:
+def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = False) -> Optional[Tuple[int, ...]]:
     """
     Performs License Plate Detection.
 
     :param image: BGR image.
     :param model: License Plate Detection model.
     :param debug: If True, the progress is print to the console.
-    :return: Proposed license plate bounding boxes.
+    :return: Proposed license plate bounding box or None.
     """
 
     # Selective search
@@ -96,11 +96,27 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = Fa
 
     # Retrieve only top k predictions
     topk = torch.topk(predictions.view(-1), k=config.LP_TOPK)
+    lp_bbs = rp_bbs[topk.indices]
 
-    return [rp_bbs[i] for i in topk.indices]
+    # Filter based on proportions
+    def filter_lp(bb: Tuple[int, ...]) -> bool:
+        x, y, w, h = bb
+        ratio = w / h
+        correct_ratio = config.LP_WIDTH_HEIGHT_RATIO_MIN <= ratio <= config.LP_WIDTH_HEIGHT_RATIO_MAX
+        correct_width = config.LP_WIDTH_MIN <= w <= config.LP_WIDTH_MAX
+        correct_height = config.LP_HEIGHT_MIN <= h <= config.LP_HEIGHT_MAX
+        return all((correct_ratio, correct_width, correct_height))
+
+    lp_bbs = list(filter(filter_lp, lp_bbs))
+
+    if len(lp_bbs) == 0:
+        return None
+
+    # TODO: Apply some more filtering on proposed license plates?
+    return lp_bbs[0]
 
 
-def lp_ocr(image: np.ndarray, lp_bb: Tuple[int, ...], ocr_model: ALPRLightningModule, debug: bool) -> str:
+def lp_ocr(image: np.ndarray, lp_bb: Tuple[int, ...], ocr_model: ALPRLightningModule, debug: bool = False) -> str:
     x, y, w, h = lp_bb
     image = image[y:y + h, x:x + w]
 
@@ -149,14 +165,14 @@ def lp_ocr(image: np.ndarray, lp_bb: Tuple[int, ...], ocr_model: ALPRLightningMo
 def alpr_pipeline(image: np.ndarray,
                   od_model: ALPRLightningModule,
                   ocr_model: ALPRLightningModule,
-                  debug: bool = False) -> Tuple[Tuple[int, ...], str]:
+                  debug: bool = False) -> Optional[Tuple[Tuple[int, ...], str]]:
     """
     Performs complete Automatic License Plate Recognition.
     :param image: BGR image
     :param od_model: License Plate Detection model.
     :param ocr_model: OCR model.
     :param debug: If True, the progress is print to the console.
-    :return: Proposed license plate bounding box along with OCR result.
+    :return: Proposed license plate bounding box along with OCR result or None.
     """
 
     start_time = time.time()
@@ -166,20 +182,11 @@ def alpr_pipeline(image: np.ndarray,
 
     # License Plate Detection
     lp_detection_start_time = time.time()
-    lp_bbs = lp_detection(image, od_model, debug)
-    lp_bbs = list(
-        filter(lambda bb: config.LP_WIDTH_MIN <= bb[2] <= config.LP_WIDTH_MAX and
-                          config.LP_HEIGHT_MIN <= bb[3] <= config.LP_HEIGHT_MAX,
-               lp_bbs)
-    )
-
-    if len(lp_bbs) == 0:
-        print("Didn't manage to find any license plate!")
-        return None
-
-    lp_bb = lp_bbs[0]
+    lp_bb = lp_detection(image, od_model, debug)
     if debug:
         print(f"Elapsed time 'locate_lp': {time.time() - lp_detection_start_time:.2f}s.")
+    if lp_bb is None:
+        return None
 
     # OCR
     lp_ocr_start_time = time.time()

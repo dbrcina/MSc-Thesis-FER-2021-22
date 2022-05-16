@@ -51,6 +51,7 @@ class ControlFrame(ttk.Frame):
         result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR), self.od_model, self.ocr_model)
         if result is None:
             messagebox.showinfo("Information", "Didn't manage to find any license plate!")
+            return
 
         (lp_x, lp_y, lp_w, lp_h), lp = result
 

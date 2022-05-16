@@ -29,6 +29,7 @@ def main(args: argparse.Namespace) -> None:
     df_all["height"] = df_all.y2 - df_all.y1
 
     df_width_height = df_all[["width", "height"]]
+    df_ratio = df_width_height["width"] / df_width_height["height"]
 
     print("MIN:")
     print(df_width_height.min())
@@ -47,6 +48,16 @@ def main(args: argparse.Namespace) -> None:
 
     print("MEDIAN")
     print(df_width_height.median())
+
+    print("-------------")
+
+    print("RATIO MIN:")
+    print(df_ratio.min())
+
+    print("-------------")
+
+    print("RATIO MAX:")
+    print(df_ratio.max())
 
 
 if __name__ == "__main__":

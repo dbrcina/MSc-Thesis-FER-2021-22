@@ -11,7 +11,7 @@
 # Pyimagesearch
 
 - [PyTorch object detection with pre-trained networks](https://pyimagesearch.com/2021/08/02/pytorch-object-detection-with-pre-trained-networks/)
-- [Non-Maximum Suppression for Object Detection in Python](https://pyimagesearch.com/2014/11/17/non-maximum-suppression-object-detection-python/Ł)
+- [Non-Maximum Suppression for Object Detection in Python](https://pyimagesearch.com/2014/11/17/non-maximum-suppression-object-detection-python/)
 - [Turning any CNN image classifier into an object detector with Keras, TensorFlow, and OpenCV](https://pyimagesearch.com/2020/06/22/turning-any-cnn-image-classifier-into-an-object-detector-with-keras-tensorflow-and-opencv/)
 - [OpenCV Selective Search for Object Detection](https://pyimagesearch.com/2020/06/29/opencv-selective-search-for-object-detection/)
 - [Region proposal object detection with OpenCV, Keras, and TensorFlow](https://pyimagesearch.com/2020/07/06/region-proposal-object-detection-with-opencv-keras-and-tensorflow/)
