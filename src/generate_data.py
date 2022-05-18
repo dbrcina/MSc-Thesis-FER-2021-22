@@ -9,18 +9,20 @@ from sklearn.model_selection import train_test_split
 
 import config
 import utils
-from pipeline import input_preprocessing, selective_search
+from pipeline import detection_preprocessing, selective_search
 
 
 def _save_results(data: np.ndarray,
                   labels: np.ndarray,
                   path: Dict[str, str],
+                  lp: str,
                   positives: int,
                   negatives: int) -> Tuple[int, int]:
     for x, label in zip(data, labels):
         if label == config.POSITIVE_LABEL:
             positives += 1
-            filename_prefix = utils.join_multiple_paths(path["positive"], str(positives))
+            sample_name = f"{positives}-{lp}"
+            filename_prefix = utils.join_multiple_paths(path["positive"], sample_name)
         else:
             negatives += 1
             filename_prefix = utils.join_multiple_paths(path["negative"], str(negatives))
@@ -33,7 +35,7 @@ def _save_results(data: np.ndarray,
 
 def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, ...]:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    image = input_preprocessing(image)
+    image = detection_preprocessing(image)
     rp_bbs = selective_search(image)
 
     positives = 0
@@ -89,15 +91,15 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
             print(f"{counter}.) processing '{image_path}' and saving...")
 
             gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
-            gt_bb = utils.read_ground_truth_bb(gt_path)
+            gt_bb, gt_lp = utils.read_ground_truth(gt_path)
 
             X_train, X_val, y_train, y_val = _generate_data_for_image(image_path, gt_bb)
 
-            counters = _save_results(X_train, y_train, train_path, total_positives_train, total_negatives_train)
+            counters = _save_results(X_train, y_train, train_path, gt_lp, total_positives_train, total_negatives_train)
             total_positives_train = counters[0]
             total_negatives_train = counters[1]
 
-            counters = _save_results(X_val, y_val, val_path, total_positives_val, total_negatives_val)
+            counters = _save_results(X_val, y_val, val_path, gt_lp, total_positives_val, total_negatives_val)
             total_positives_val = counters[0]
             total_negatives_val = counters[1]
 

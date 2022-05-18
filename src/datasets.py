@@ -17,6 +17,7 @@ od_transform_val = transforms.Compose([
 ocr_transform_train = transforms.Compose([
     transforms.ToTensor(),
     transforms.Grayscale(),
+    transforms.RandomRotation(10),
     transforms.Normalize(0.3757, 0.4676)
 ])
 

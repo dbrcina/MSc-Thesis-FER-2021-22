@@ -43,7 +43,7 @@ def main(args: Dict[str, Any]) -> None:
             (lp_x, lp_y, lp_w, lp_h), lp = result
 
             gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
-            gt_bb = utils.read_ground_truth_bb(gt_path)
+            gt_bb, _ = utils.read_ground_truth(gt_path)
             lp_bb = (lp_x, lp_y, lp_x + lp_w, lp_y + lp_h)
 
             iou = utils.calculate_iou(gt_bb, lp_bb)

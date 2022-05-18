@@ -6,7 +6,7 @@ import pandas as pd
 
 import config
 import utils
-from pipeline import input_preprocessing, selective_search
+from pipeline import detection_preprocessing, selective_search, recognition_preprocessing
 from src.transform import four_point_transform
 
 
@@ -16,7 +16,7 @@ def display(title: str, image: np.ndarray) -> None:
 
 
 DEBUG = True
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\040603\P6040034.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\040603\P6040018.jpg"
 image_annot = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -26,11 +26,33 @@ w = df["x2"][0] - x
 h = df["y2"][0] - y
 
 image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+image = detection_preprocessing(image)
+
+lp = image[y:y + h, x:x + w]
+display("License plate", lp)
+
+lp = recognition_preprocessing(lp)
+display("Tresholded", lp)
+exit()
+
+edged = utils.auto_canny(lp)
+display("Canny", edged)
+
+lines = cv2.HoughLinesP(edged, 1, np.pi / 180,50, maxLineGap=30)
+if lines is None:
+    print("Didn't manage to find any lines")
+    exit()
+lines = lines.reshape(-1, 4)
+for x1, y1, x2, y2 in lines:
+    cv2.line(lp, (x1, y1), (x2, y2), (255, 255, 255), 3)
+display("Lines", lp)
+exit()
+
 bbs = selective_search(image)
 cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
 display("Original", image)
 exit()
-updated = input_preprocessing(image)
+updated = detection_preprocessing(image)
 display("Updated", updated)
 
 exit()

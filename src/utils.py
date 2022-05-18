@@ -16,10 +16,10 @@ def replace_file_extension(filename: str, new_ext: str) -> str:
     return os.path.splitext(filename)[0] + new_ext
 
 
-def read_ground_truth_bb(path: str) -> Tuple[int, ...]:
+def read_ground_truth(path: str) -> Tuple[Tuple[int, ...], str]:
     df_gt = pd.read_csv(path, index_col=0)
-    gt_bb = next(iter(df_gt[["x1", "y1", "x2", "y2"]].itertuples(index=False, name=None)))
-    return gt_bb
+    x1, y1, x2, y2, lp = next(iter(df_gt.itertuples(index=False, name=None)))
+    return (x1, y1, x2, y2), lp
 
 
 def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1e-5) -> float:
