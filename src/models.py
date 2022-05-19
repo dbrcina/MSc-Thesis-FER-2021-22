@@ -1,10 +1,60 @@
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Union
 
 import pytorch_lightning as pl
 import torch
 import torchmetrics
 from torch import nn, optim
 from torch.nn import functional as F
+
+
+class CRNN(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+        act_fun = nn.ReLU(inplace=True)
+
+        # Input batches: Nx1x32x100
+        self.conv_layers = nn.Sequential(
+            self._conv_layer(1, 64, 3, 1, 1, act_fun),
+            nn.MaxPool2d(2, 2),  # Nx64x16x50
+            self._conv_layer(64, 128, 3, 1, 1, act_fun),
+            nn.MaxPool2d(2, 2),  # Nx128x8x25
+            self._conv_layer(128, 256, 3, 1, 1, act_fun),
+            self._conv_layer(256, 256, 3, 1, 1, act_fun),
+            nn.MaxPool2d((2, 1), (2, 1)),  # Nx256x4x25
+            self._conv_layer(256, 512, 3, 1, 1, act_fun, batch_normalization=True),
+            self._conv_layer(512, 512, 3, 1, 1, act_fun, batch_normalization=True),
+            nn.MaxPool2d((2, 1), (2, 1)),  # Nx512x2x25
+            self._conv_layer(512, 512, 2, 1, 0, act_fun)  # Nx512x1x24
+        )
+
+        self.recurrent_layers = nn.Sequential(
+            nn.LSTM(512, hidden_size=256, bidirectional=True),
+            nn.LSTM(512, hidden_size=256, bidirectional=True)
+        )
+
+    def _conv_layer(self,
+                    in_channels: int,
+                    out_channels: int,
+                    kernel_size: Union[int, Tuple[int, int]],
+                    stride: Union[int, Tuple[int, int]],
+                    padding: Union[int, Tuple[int, int]],
+                    act_fun: nn.Module,
+                    batch_normalization: bool = False) -> nn.Module:
+        modules = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
+        if batch_normalization:
+            # When using BatchNorm2d, Conv2d bias is not needed
+            modules[-1].bias = None
+            modules.append(nn.BatchNorm2d(out_channels))
+        modules.append(act_fun)
+        return nn.Sequential(*modules)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        assert x.shape[1:] == (1, 32, 100), "Expecting a grayscale image with size 32x100"
+
+        x = self.conv_layers(x)
+
+        return x
 
 
 class LeNet5(nn.Module):

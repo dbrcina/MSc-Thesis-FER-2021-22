@@ -16,7 +16,7 @@ def display(title: str, image: np.ndarray) -> None:
 
 
 DEBUG = True
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\040603\P6040018.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\170902\P9170008.jpg"
 image_annot = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -29,7 +29,9 @@ image = cv2.imread(image_path, cv2.IMREAD_COLOR)
 image = detection_preprocessing(image)
 
 lp = image[y:y + h, x:x + w]
+lp = cv2.resize(lp, (100, 32), interpolation=cv2.INTER_CUBIC)
 display("License plate", lp)
+exit()
 
 lp = recognition_preprocessing(lp)
 display("Tresholded", lp)
