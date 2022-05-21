@@ -16,7 +16,7 @@ def display(title: str, image: np.ndarray) -> None:
 
 
 DEBUG = True
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\170902\P9170008.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\180902\P9180051.jpg"
 image_annot = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -29,10 +29,36 @@ image = cv2.imread(image_path, cv2.IMREAD_COLOR)
 image = detection_preprocessing(image)
 
 lp = image[y:y + h, x:x + w]
-lp = cv2.resize(lp, (100, 32), interpolation=cv2.INTER_CUBIC)
-display("License plate", lp)
-exit()
+lp = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
+lp = cv2.resize(lp, config.RECOGNITION_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
+# display("License plate", lp)
 
+otsu_thresh, otsu_img = cv2.threshold(lp, 0, 255, cv2.THRESH_OTSU)
+# display("OTSU", otsu_img)
+
+edges = cv2.Canny(lp, otsu_thresh, otsu_thresh * 3)
+# display("Canny", edges)
+
+contours = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
+hull_in = []
+for contour in contours:
+    if len(contour) > 5:
+        for point in contour.reshape(-1, 2):
+            hull_in.append(point)
+
+if len(hull_in) == 0:
+    print("hul_in prazan")
+    exit()
+
+hull_out = cv2.convexHull(np.array(hull_in))
+r = cv2.minAreaRect(hull_out)
+box = cv2.boxPoints(r)
+box = np.int0(box)
+cv2.drawContours(lp, [box], 0, (0,0,0), 2)
+display("tett", lp)
+trans = four_point_transform(lp, box)
+display("trans", trans)
+exit()
 lp = recognition_preprocessing(lp)
 display("Tresholded", lp)
 exit()
@@ -40,7 +66,7 @@ exit()
 edged = utils.auto_canny(lp)
 display("Canny", edged)
 
-lines = cv2.HoughLinesP(edged, 1, np.pi / 180,50, maxLineGap=30)
+lines = cv2.HoughLinesP(edged, 1, np.pi / 180, 50, maxLineGap=30)
 if lines is None:
     print("Didn't manage to find any lines")
     exit()

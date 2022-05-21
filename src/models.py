@@ -8,53 +8,105 @@ from torch.nn import functional as F
 
 
 class CRNN(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, n_classes: int, img_width: int = 100, img_height: int = 32, dropout: float = 0.2) -> None:
         super().__init__()
+
+        self.img_width = img_width
+        self.img_height = img_height
 
         act_fun = nn.ReLU(inplace=True)
 
-        # Input batches: Nx1x32x100
+        def conv_layer(in_channels: int,
+                       out_channels: int,
+                       kernel_size: Union[int, Tuple[int, int]],
+                       stride: Union[int, Tuple[int, int]],
+                       padding: Union[int, Tuple[int, int]],
+                       batch_normalization: bool = False) -> nn.Module:
+            modules = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
+            if batch_normalization:
+                # When using BatchNorm2d, Conv2d bias is not needed
+                modules[-1].bias = None
+                modules.append(nn.BatchNorm2d(out_channels))
+            modules.append(act_fun)
+            return nn.Sequential(*modules)
+
         self.conv_layers = nn.Sequential(
-            self._conv_layer(1, 64, 3, 1, 1, act_fun),
-            nn.MaxPool2d(2, 2),  # Nx64x16x50
-            self._conv_layer(64, 128, 3, 1, 1, act_fun),
-            nn.MaxPool2d(2, 2),  # Nx128x8x25
-            self._conv_layer(128, 256, 3, 1, 1, act_fun),
-            self._conv_layer(256, 256, 3, 1, 1, act_fun),
-            nn.MaxPool2d((2, 1), (2, 1)),  # Nx256x4x25
-            self._conv_layer(256, 512, 3, 1, 1, act_fun, batch_normalization=True),
-            self._conv_layer(512, 512, 3, 1, 1, act_fun, batch_normalization=True),
-            nn.MaxPool2d((2, 1), (2, 1)),  # Nx512x2x25
-            self._conv_layer(512, 512, 2, 1, 0, act_fun)  # Nx512x1x24
+            conv_layer(1, 64, 3, 1, 1),
+            nn.MaxPool2d(2, 2),  # HEIGHT//2 x WIDTH//2
+            conv_layer(64, 128, 3, 1, 1),
+            nn.MaxPool2d(2, 2),  # HEIGHT//4 x WIDTH//4
+            conv_layer(128, 256, 3, 1, 1),
+            conv_layer(256, 256, 3, 1, 1),
+            nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//8 x WIDTH//4
+            conv_layer(256, 512, 3, 1, 1, batch_normalization=True),
+            conv_layer(512, 512, 3, 1, 1, batch_normalization=True),
+            nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//16 x WIDTH//4
+            conv_layer(512, 512, 2, 1, 0)  # HEIGHT//16-1 x WIDTH//4-1
         )
+        self.output_img_width = img_width // 4 - 1
+        self.output_img_height = img_height // 16 - 1
 
-        self.recurrent_layers = nn.Sequential(
-            nn.LSTM(512, hidden_size=256, bidirectional=True),
-            nn.LSTM(512, hidden_size=256, bidirectional=True)
-        )
-
-    def _conv_layer(self,
-                    in_channels: int,
-                    out_channels: int,
-                    kernel_size: Union[int, Tuple[int, int]],
-                    stride: Union[int, Tuple[int, int]],
-                    padding: Union[int, Tuple[int, int]],
-                    act_fun: nn.Module,
-                    batch_normalization: bool = False) -> nn.Module:
-        modules = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
-        if batch_normalization:
-            # When using BatchNorm2d, Conv2d bias is not needed
-            modules[-1].bias = None
-            modules.append(nn.BatchNorm2d(out_channels))
-        modules.append(act_fun)
-        return nn.Sequential(*modules)
+        self.recurrent_layers = nn.LSTM(512, 256, 2, dropout=dropout, bidirectional=True)
+        self.output_projection = nn.Linear(2 * 256, n_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[1:] == (1, 32, 100), "Expecting a grayscale image with size 32x100"
+        assert x.shape[1:] == (1, self.img_height, self.img_width)
 
         x = self.conv_layers(x)
+        batch_size, n_channels, height, width = x.shape
+        assert (height, width) == (self.output_img_height, self.output_img_width)
+
+        # view channels and height as features
+        x = x.view(batch_size, n_channels * height, width)
+        # (seq_length,batch_size,features)
+        x = x.permute(2, 0, 1)
+        x, _ = self.recurrent_layers(x)
+
+        x = self.output_projection(x)
 
         return x
+
+
+class ALPRLightningModuleCTC(pl.LightningModule):
+    def __init__(self,
+                 model_name: str,
+                 model_hparams: Dict[str, Any],
+                 optimizer_name: str,
+                 optimizer_hparams: Dict[str, Any]) -> None:
+        super().__init__()
+
+        self.save_hyperparameters()
+
+        self.model = _MODELS[model_name.lower()](**model_hparams)
+        self.optimizer = _OPTIMIZERS[optimizer_name.lower()](self.parameters(), **optimizer_hparams)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.model(x)
+
+    def configure_optimizers(self) -> optim.Optimizer:
+        return self.optimizer
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        loss, acc = self._step(batch)
+
+        self.log("train_loss", loss)
+        self.log("train_acc", acc, on_step=False, on_epoch=True)
+
+        return loss
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+        loss, acc = self._step(batch)
+
+        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_acc", acc, prog_bar=True)
+
+    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
+        x, labels = batch
+        logits = self(x)
+
+        loss = self._loss(logits, labels)
+        acc = torchmetrics.functional.accuracy(logits, labels)
+        return loss, acc
 
 
 class LeNet5(nn.Module):
@@ -155,12 +207,19 @@ class AlexNet(nn.Module):
 
 _MODELS = {
     "lenet5": LeNet5,
-    "alexnet": AlexNet
+    "alexnet": AlexNet,
+    "crnn": CRNN
 }
 
 _OPTIMIZERS = {
     "sgd": optim.SGD,
     "adamw": optim.AdamW
+}
+
+_LOSSES = {
+    "bce": F.binary_cross_entropy_with_logits,
+    "ce": F.cross_entropy,
+    "ctc": F.ctc_loss
 }
 
 

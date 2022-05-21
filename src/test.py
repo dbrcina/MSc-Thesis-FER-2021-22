@@ -8,5 +8,5 @@ x = x.resize((100, 32))
 x = transforms.ToTensor()(x)
 x = transforms.Grayscale()(x)
 
-model = CRNN()
+model = CRNN(37)
 model.forward(x[None, :, :, :])

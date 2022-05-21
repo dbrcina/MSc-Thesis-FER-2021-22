@@ -12,6 +12,12 @@ def join_multiple_paths(*paths: str) -> str:
     return os.path.join(*paths)
 
 
+def create_dir(*paths: str) -> str:
+    path = join_multiple_paths(*paths)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def replace_file_extension(filename: str, new_ext: str) -> str:
     return os.path.splitext(filename)[0] + new_ext
 
