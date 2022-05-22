@@ -26,7 +26,7 @@ def _save_data(data: np.ndarray,
                lps_data: Dict[str, Any],
                total_train: int,
                total_val: int) -> Tuple[int, int]:
-    val_size = int(len(data) * config.TRAIN_VAL_SPLIT)
+    val_size = max(1, int(len(data) * config.TRAIN_VAL_SPLIT))
     train_size = len(data) - val_size
 
     lp_data_dir = lps_data.get(lp)
@@ -57,7 +57,7 @@ def _save_data(data: np.ndarray,
     return total_train + train_size, total_val + val_size
 
 
-def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, np.ndarray]:
+def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...], two_rows: bool) -> Tuple[np.ndarray, np.ndarray]:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
     image = detection_preprocessing(image)
     rp_bbs = selective_search(image)
@@ -74,8 +74,7 @@ def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[n
         if iou >= config.IOU_RECOGNITION:
             roi = image[y:y + h, x:x + w]
             roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            # TODO: Perspective transform, affine
-            if h / w >= 0.8:
+            if two_rows:
                 upper = roi[0:h // 2, 0:w]
                 lower = roi[h // 2:h, 0:w]
                 upper_data.append(resize(upper))
@@ -92,14 +91,14 @@ def _generate_data(base_path: str, paths: Dict[str, str]) -> Tuple[int, int]:
 
     lps_data = {}
 
-    for image_path in tqdm(glob.glob(f"{base_path}/*.jpg")):
+    for image_path in tqdm(glob.glob(f"{base_path}/**/*.jpg")):
         gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
-        gt_bb, gt_lp = utils.read_ground_truth(gt_path)
+        gt_bb, gt_lp, two_rows = utils.read_ground_truth(gt_path)
 
-        upper_data, lower_data = _generate_data_for_image(image_path, gt_bb)
+        upper_data, lower_data = _generate_data_for_image(image_path, gt_bb, two_rows)
 
         if len(lower_data) > 0:
-            # TODO: Hardcoded because this one is specific...
+            # Hardcoded because this one is specific...
             if image_path.endswith("P6040067.jpg"):
                 upper_lp = gt_lp[:3]
                 lower_lp = gt_lp[3:]
@@ -127,7 +126,6 @@ def main(args: Dict[str, Any]) -> None:
 
     total_train, total_val = _generate_data(base_path, paths)
 
-    print("-----------------------------")
     print(f"TRAIN: {total_train}")
     print(f"VAL: {total_val}")
 
