@@ -59,6 +59,7 @@ class ControlFrame(ttk.Frame):
         self.filenames = []
         self.current_index = 0
         self.lp = tk.StringVar()
+        self.two_rows = tk.BooleanVar()
 
         self._create_widgets()
 
@@ -80,17 +81,22 @@ class ControlFrame(ttk.Frame):
 
         ttk.Label(self).grid(column=0, row=5)
 
+        self.ckbtn = ttk.Checkbutton(self, text="Two rows LP", state="disabled", variable=self.two_rows)
+        self.ckbtn.grid(column=0, row=6, columnspan=2)
+
+        ttk.Label(self).grid(column=0, row=7)
+
         btn_frame = ttk.Frame(self)
-        btn_frame.grid(column=0, row=6, columnspan=2)
+        btn_frame.grid(column=0, row=8, columnspan=2)
         self.btn_prev = ttk.Button(btn_frame, text="Previous", command=lambda: self._new_img("Left"), state=tk.DISABLED)
         self.btn_prev.grid(column=0, row=0, sticky=tk.E)
         self.btn_next = ttk.Button(btn_frame, text="Next", command=lambda: self._new_img("Right"), state=tk.DISABLED)
         self.btn_next.grid(column=1, row=0, sticky=tk.W)
 
-        ttk.Label(self).grid(column=0, row=7)
+        ttk.Label(self).grid(column=0, row=9)
 
         self.btn_save = ttk.Button(self, text="Save", command=self._save_annot, state=tk.DISABLED)
-        self.btn_save.grid(column=0, row=8, columnspan=2)
+        self.btn_save.grid(column=0, row=10, columnspan=2)
 
         self.lp.trace("w", lambda name, index, mode, lp=self.lp: self.btn_save.config(
             state=tk.NORMAL) if lp.get() != "" else self.btn_save.config(state=tk.DISABLED))
@@ -113,10 +119,12 @@ class ControlFrame(ttk.Frame):
         if len(self.filenames) == 0:
             self.btn_next["state"] = tk.DISABLED
             self.entry_lp["state"] = tk.DISABLED
+            self.ckbtn["state"] = tk.DISABLED
             return
 
         self.btn_next["state"] = tk.NORMAL
         self.entry_lp["state"] = tk.NORMAL
+        self.ckbtn["state"] = tk.NORMAL
 
         self._display_current_img()
 
@@ -170,7 +178,8 @@ class ControlFrame(ttk.Frame):
             "y1": bbox[1],
             "x2": bbox[2],
             "y2": bbox[3],
-            "lp": lp
+            "lp": lp,
+            "two_rows": self.two_rows.get()
         }
         pd.DataFrame([annot]).to_csv(annot_filename)
 
