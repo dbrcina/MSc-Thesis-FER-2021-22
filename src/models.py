@@ -148,22 +148,16 @@ class ALPRLightningModule(pl.LightningModule):
         return self.optimizer
 
     def training_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> torch.Tensor:
-        loss, acc = self._step(batch)
-
+        loss = self._step(batch)
         self.log("train_loss", loss)
-        # self.log("train_acc", acc, on_step=False, on_epoch=True)
-
         return loss
 
     def validation_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> None:
-        loss, acc = self._step(batch)
-
+        loss = self._step(batch)
         self.log("val_loss", loss, prog_bar=True)
-        # self.log("val_acc", acc, prog_bar=True)
 
-    def _step(self, batch: Tuple[torch.Tensor, ...]) -> Tuple[torch.Tensor, torch.tensor]:
+    def _step(self, batch: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         loss = None
-        acc = None
 
         loss_name = self.hparams["loss_name"]
 
@@ -179,13 +173,4 @@ class ALPRLightningModule(pl.LightningModule):
             logits = self(x)
             loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.float())
 
-        return loss, 0
-
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
-        logits = self(x)
-
-        loss_name = self.hparams["loss_name"]
-        if loss_name == "bce":
-            return torch.sigmoid(logits)
-
-        return logits
+        return loss

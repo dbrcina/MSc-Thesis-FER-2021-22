@@ -1,4 +1,3 @@
-import string
 import time
 from typing import Tuple, Optional
 
@@ -7,10 +6,10 @@ import numpy as np
 import torch
 
 import config
-from datasets import od_transform_val, ocr_transform_val
-from models import ALPRLightningModule2
-
-CHARACTERS = list(string.digits + string.ascii_uppercase)
+from datasets import detection_transform_val, recognition_transform_val
+from mappings import labels2text
+from models import ALPRLightningModule
+from predict import predict_binary, predict_ctc
 
 
 def detection_preprocessing(image: np.ndarray) -> np.ndarray:
@@ -60,7 +59,7 @@ def selective_search(image: np.ndarray, fast: bool = True) -> np.ndarray:
     return rp_bbs
 
 
-def lp_detection(image: np.ndarray, model: ALPRLightningModule2, debug: bool = False) -> Optional[Tuple[int, ...]]:
+def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = False) -> Optional[Tuple[int, ...]]:
     """
     Performs License Plate Detection.
 
@@ -82,15 +81,16 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule2, debug: bool = F
     # Prepare input for the model
     start_time = time.time()
     x = torch.stack([
-        od_transform_val(
-            cv2.resize(image[y:y + h, x:x + w], config.OD_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
+        detection_transform_val(
+            cv2.resize(image[y:y + h, x:x + w], config.DETECTION_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
         for x, y, w, h in rp_bbs])
     if debug:
         print(f"Elapsed time 'lp_detection::prepare_model_input': {time.time() - start_time:.2f}s.")
 
     # Predict license plates
     start_time = time.time()
-    predictions = model.predict(x)
+    logits = model(x)
+    predictions = predict_binary(logits)
     if debug:
         print(f"Elapsed time 'lp_detection::predict': {time.time() - start_time:.2f}s.")
 
@@ -117,92 +117,55 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule2, debug: bool = F
     return lp_bbs[0]
 
 
-def recognition_preprocessing(image: np.ndarray) -> np.ndarray:
+def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningModule, debug: bool = False) -> str:
     """
-    Performs image preprocessing for License Plate Recognition on the provided image.
-
-    :param image: BGR image.
-    :return: Preprocessed image.
-    """
-
-    # BGR > Gray
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Applying gaussian filter
-    blur = cv2.GaussianBlur(gray, (3, 3), 0)
-
-    # Applying adaptive thresholding
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
-
-    return thresh
-
-
-def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningModule2, debug: bool = False) -> str:
-    """
-    Performs License Plate Recognition.
+    Performs License Plate Recognition. Expects the input image to be preprocessed with 'detection_preprocessing'.
 
     :param image: BGR image.
     :param bb: License plate bounding box.
-    :param model: OCR model.
+    :param model: License Plate Recognition model.
     :param debug: If True, the progress is print to the console.
-    :return: License plate characters or None.
+    :return: License plate characters.
     """
 
     bb_x, bb_y, bb_w, bb_h = bb
-    image = image[bb_y:bb_y + bb_h, bb_x:bb_x + bb_w]
+    lp = image[bb_y:bb_y + bb_h, bb_x:bb_x + bb_w]
+    if bb_h / bb_w >= 0.6:
+        lps = [
+            lp[0:bb_h // 2, 0:bb_w],
+            lp[bb_h // 2:bb_h, 0:bb_w]
+        ]
+    else:
+        lps = [lp]
 
-    # Preprocessing
+    # Prepare input for the model
     start_time = time.time()
-    image = recognition_preprocessing(image)
-    if debug:
-        print(f"Elapsed time 'lp_recognition::preprocessing': {time.time() - start_time:.2f}s.")
-
-    # Find contours
-    start_time = time.time()
-    contours = cv2.findContours(image, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
-    contour_bbs = list(map(cv2.boundingRect, contours))
-    heights = list(map(lambda bb: bb[3], contour_bbs))
-    counts = np.bincount(heights)
-    height = np.argmax(counts)
-    chars = []
-    for contour, (x, y, w, h) in sorted(zip(contours, contour_bbs), key=lambda x: x[1][0]):
-        if (height - 2) <= h <= (height + 2):
-            chars.append(image[y:y + h, x:x + w])
-    if debug:
-        print(f"Elapsed time 'lp_recognition::contours': {time.time() - start_time:.2f}s.")
-
-    # If there are no valid contours
-    if len(chars) == 0:
-        return ""
-
-    # Prepare input for ocr
-    start_time = time.time()
-    # Gray -> RGB because of torchvision transforms
-    bb_x = torch.stack([
-        ocr_transform_val(cv2.cvtColor(
-            cv2.resize(c, dsize=config.OCR_INPUT_DIM, interpolation=cv2.INTER_NEAREST), cv2.COLOR_GRAY2RGB))
-        for c in chars])
+    x = torch.stack(
+        [recognition_transform_val(cv2.resize(lp, config.RECOGNITION_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
+         for lp in lps])
     if debug:
         print(f"Elapsed time 'lp_recognition::prepare_model_input': {time.time() - start_time:.2f}s.")
 
     # Predict characters
     start_time = time.time()
-    char_preds = model.predict(bb_x)
+    logits = model(x)
+    logits = logits.permute(1, 0, 2)
+    predictions = [predict_ctc(logits[0]), predict_ctc(logits[1])]
     if debug:
         print(f"Elapsed time 'lp_recognition::predict': {time.time() - start_time:.2f}s.")
 
-    return "".join(list(map(lambda x: CHARACTERS[x], torch.argmax(char_preds, dim=1))))
+    return "".join([labels2text(predictions[0]), labels2text(predictions[1])])
 
 
 def alpr_pipeline(image: np.ndarray,
-                  od_model: ALPRLightningModule2,
-                  ocr_model: ALPRLightningModule2,
+                  detection_model: ALPRLightningModule,
+                  recognition_model: ALPRLightningModule,
                   debug: bool = False) -> Optional[Tuple[Tuple[int, ...], str]]:
     """
     Performs complete Automatic License Plate Recognition.
     :param image: BGR image
-    :param od_model: License Plate Detection model.
-    :param ocr_model: OCR model.
+    :param detection_model: License Plate Detection model.
+    :param recognition_model: License Plate Recognition model.
     :param debug: If True, the progress is print to the console.
     :return: Proposed license plate bounding box along with OCR result or None.
     """
@@ -212,7 +175,7 @@ def alpr_pipeline(image: np.ndarray,
     # License Plate Detection
     detection_start_time = time.time()
     image = detection_preprocessing(image)
-    lp_bb = lp_detection(image, od_model, debug)
+    lp_bb = lp_detection(image, detection_model, debug)
     if debug:
         print(f"Elapsed time 'lp_detection': {time.time() - detection_start_time:.2f}s.")
     if lp_bb is None:
@@ -220,7 +183,7 @@ def alpr_pipeline(image: np.ndarray,
 
     # License Plate Recognition
     recognition_start_time = time.time()
-    lp = lp_recognition(image, lp_bb, ocr_model, debug)
+    lp = lp_recognition(image, lp_bb, recognition_model, debug)
     if debug:
         print(f"Elapsed time 'lp_recognition': {time.time() - recognition_start_time:.2f}s.")
 

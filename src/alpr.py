@@ -12,12 +12,12 @@ from pipeline import alpr_pipeline
 
 
 class ControlFrame(ttk.Frame):
-    def __init__(self, container, image_canvas: tk.Canvas, od_path: str, ocr_path: str) -> None:
+    def __init__(self, container, image_canvas: tk.Canvas, detection_path: str, recognition_path: str) -> None:
         super().__init__(container)
 
         self.image_canvas = image_canvas
-        self.od_model = utils.load_model(od_path)
-        self.ocr_model = utils.load_model(ocr_path)
+        self.detection_model = utils.load_model(detection_path, loss_name="bce")
+        self.recognition_model = utils.load_model(recognition_path)
 
         self._create_widgets()
 
@@ -48,7 +48,7 @@ class ControlFrame(ttk.Frame):
     def _start(self) -> None:
         image_cpy = self.image.copy()
 
-        result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR), self.od_model, self.ocr_model)
+        result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR), self.detection_model, self.recognition_model)
         if result is None:
             messagebox.showinfo("Information", "Didn't manage to find any license plate!")
             return
@@ -64,11 +64,11 @@ class ControlFrame(ttk.Frame):
 
 
 class ALPRApp(tk.Tk):
-    def __init__(self, od_path: str, ocr_path: str) -> None:
+    def __init__(self, detection_path: str, recognition_path: str) -> None:
         super().__init__()
 
-        self.od_path = od_path
-        self.ocr_path = ocr_path
+        self.detection_path = detection_path
+        self.recognition_path = recognition_path
         self.title("Automatic License Plate Recognizer")
         self.resizable(False, False)
 
@@ -80,14 +80,14 @@ class ALPRApp(tk.Tk):
 
         ttk.Separator(self, orient=tk.HORIZONTAL).pack(fill="x")
 
-        control_frame = ControlFrame(self, image_canvas, self.od_path, self.ocr_path)
+        control_frame = ControlFrame(self, image_canvas, self.detection_path, self.recognition_path)
         control_frame.pack()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automatic License Plate Recognizer")
-    parser.add_argument("od_path", type=str, help="Path to object detection model.")
-    parser.add_argument("ocr_path", type=str, help="Path to ocr model.")
+    parser.add_argument("detection_path", type=str)
+    parser.add_argument("recognition_path", type=str)
     args = vars(parser.parse_args())
 
-    ALPRApp(args["od_path"], args["ocr_path"]).mainloop()
+    ALPRApp(args["detection_path"], args["recognition_path"]).mainloop()

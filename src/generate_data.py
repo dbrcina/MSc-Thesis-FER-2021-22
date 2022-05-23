@@ -59,7 +59,7 @@ def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[n
             continue
 
         roi = image[y:y + h, x:x + w]
-        roi = cv2.resize(roi, dsize=config.OD_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
+        roi = cv2.resize(roi, dsize=config.DETECTION_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
         data.append(roi)
         labels.append(label)
 
