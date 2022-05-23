@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 import config
 import utils
-from pipeline import detection_preprocessing, selective_search
+from pipeline import contrast_enhancement, selective_search
 
 
 def _save_to_disk(data: np.ndarray, path: str, counter: int) -> None:
@@ -63,7 +63,7 @@ def _save_data(data: np.ndarray,
 
 def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...], two_rows: bool) -> Tuple[np.ndarray, np.ndarray]:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    image = detection_preprocessing(image)
+    image = contrast_enhancement(image)
     rp_bbs = selective_search(image)
 
     upper_data = []
@@ -78,13 +78,14 @@ def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...], two_rows: 
         if iou >= config.IOU_POSITIVE:
             roi = image[y:y + h, x:x + w]
             roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            if two_rows:
-                upper = roi[0:h // 2, 0:w]
-                lower = roi[h // 2:h, 0:w]
-                upper_data.append(resize(upper))
-                lower_data.append(resize(lower))
-            else:
-                upper_data.append(resize(roi))
+            upper_data.append(resize(roi))
+            # if two_rows:
+            #     upper = roi[0:h // 2, 0:w]
+            #     lower = roi[h // 2:h, 0:w]
+            #     upper_data.append(resize(upper))
+            #     lower_data.append(resize(lower))
+            # else:
+            #     upper_data.append(resize(roi))
 
     return np.array(upper_data), np.array(lower_data)
 

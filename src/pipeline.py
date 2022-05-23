@@ -12,14 +12,7 @@ from models import ALPRLightningModule
 from predict import predict_binary, predict_ctc
 
 
-def detection_preprocessing(image: np.ndarray) -> np.ndarray:
-    """
-    Performs image preprocessing for License Plate Detection on the provided image.
-
-    :param image: BGR image.
-    :return: Preprocessed image.
-    """
-
+def contrast_enhancement(image: np.ndarray) -> np.ndarray:
     # BGR -> YCrCb
     y, cr, cb = cv2.split(cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb))
 
@@ -37,25 +30,11 @@ def detection_preprocessing(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def selective_search(image: np.ndarray, fast: bool = True) -> np.ndarray:
-    """
-    Performs selective search algorithm on the provided image.
-
-    :param image: BGR image.
-    :param fast: If True, fast version is used, otherwise quality version is used.
-    :return: Regional proposal bounding boxes.
-    """
-
+def selective_search(image: np.ndarray) -> np.ndarray:
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     ss.setBaseImage(image)
-
-    if fast:
-        ss.switchToSelectiveSearchFast()
-    else:
-        ss.switchToSelectiveSearchQuality()
-
+    ss.switchToSelectiveSearchFast()
     rp_bbs = ss.process()
-
     return rp_bbs
 
 
@@ -130,31 +109,22 @@ def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningM
 
     bb_x, bb_y, bb_w, bb_h = bb
     lp = image[bb_y:bb_y + bb_h, bb_x:bb_x + bb_w]
-    if bb_h / bb_w >= 0.6:
-        lps = [
-            lp[0:bb_h // 2, 0:bb_w],
-            lp[bb_h // 2:bb_h, 0:bb_w]
-        ]
-    else:
-        lps = [lp]
 
     # Prepare input for the model
     start_time = time.time()
-    x = torch.stack(
-        [recognition_transform_val(cv2.resize(lp, config.RECOGNITION_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
-         for lp in lps])
+    x = recognition_transform_val(cv2.resize(lp, config.RECOGNITION_INPUT_DIM, interpolation=cv2.INTER_CUBIC))
+    x = x[None, :, :, :]
     if debug:
         print(f"Elapsed time 'lp_recognition::prepare_model_input': {time.time() - start_time:.2f}s.")
 
     # Predict characters
     start_time = time.time()
     logits = model(x)
-    logits = logits.permute(1, 0, 2)
-    predictions = [predict_ctc(logits[0]), predict_ctc(logits[1])]
+    prediction = predict_ctc(logits)
     if debug:
         print(f"Elapsed time 'lp_recognition::predict': {time.time() - start_time:.2f}s.")
 
-    return "".join([labels2text(predictions[0]), labels2text(predictions[1])])
+    return labels2text(prediction)
 
 
 def alpr_pipeline(image: np.ndarray,
@@ -174,7 +144,7 @@ def alpr_pipeline(image: np.ndarray,
 
     # License Plate Detection
     detection_start_time = time.time()
-    image = detection_preprocessing(image)
+    image = contrast_enhancement(image)
     lp_bb = lp_detection(image, detection_model, debug)
     if debug:
         print(f"Elapsed time 'lp_detection': {time.time() - detection_start_time:.2f}s.")

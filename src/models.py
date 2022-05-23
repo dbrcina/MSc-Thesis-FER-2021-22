@@ -6,14 +6,69 @@ from torch import nn, optim
 from torch.nn import functional as F
 
 
+def conv_layer(in_channels: int,
+               out_channels: int,
+               kernel_size: Union[int, Tuple[int, int]],
+               stride: Union[int, Tuple[int, int]],
+               padding: Union[int, Tuple[int, int]],
+               act_fn: nn.Module,
+               batch_normalization: bool = False) -> nn.Module:
+    modules = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
+    if batch_normalization:
+        # When using BatchNorm2d, Conv2d bias is not needed
+        modules[-1].bias = None
+        modules.append(nn.BatchNorm2d(out_channels))
+    modules.append(act_fn)
+    return nn.Sequential(*modules)
+
+
+class CNNBackbone(nn.Module):
+    def __init__(self, in_channels: int = 1, in_width: int = 100, in_height: int = 32) -> None:
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.in_width = in_width
+        self.in_height = in_height
+
+        act_fn = nn.ReLU(inplace=True)
+
+        self.net = nn.Sequential(
+            conv_layer(in_channels, 16, 3, 1, 1, act_fn),
+            nn.MaxPool2d(2, 2),  # HEIGHT//2 x WIDTH//2
+            conv_layer(16, 32, 3, 1, 1, act_fn),
+            nn.MaxPool2d(2, 2),  # HEIGHT//4 x WIDTH//4
+            conv_layer(32, 64, 3, 1, 1, act_fn),
+            conv_layer(64, 64, 3, 1, 1, act_fn),
+            nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//8 x WIDTH//4
+            conv_layer(64, 128, 3, 1, 1, act_fn, batch_normalization=True),
+            conv_layer(128, 128, 3, 1, 1, act_fn, batch_normalization=True),
+            nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//16 x WIDTH//4
+            conv_layer(128, 128, 2, 1, 0, act_fn)  # HEIGHT//16-1 x WIDTH//4-1
+        )
+
+        self.out_width = in_width // 4 - 1
+        self.out_height = in_height // 16 - 1
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        assert x.shape[1:] == (self.in_channels, self.in_height, self.in_width)
+
+        x = self.net(x)
+
+        assert x.shape[2:] == (self.out_height, self.out_width)
+
+        return x
+
+
 class CRNN(nn.Module):
     def __init__(self, n_classes: int, img_width: int = 100, img_height: int = 32, dropout: float = 0.2) -> None:
         super().__init__()
 
         self.img_width = img_width
         self.img_height = img_height
+        self.output_img_width = img_width // 4 - 1
+        self.output_img_height = img_height // 16 - 1
 
-        act_fun = nn.ReLU(inplace=True)
+        act_fn = nn.ReLU(inplace=True)
 
         def conv_layer(in_channels: int,
                        out_channels: int,
@@ -26,7 +81,7 @@ class CRNN(nn.Module):
                 # When using BatchNorm2d, Conv2d bias is not needed
                 modules[-1].bias = None
                 modules.append(nn.BatchNorm2d(out_channels))
-            modules.append(act_fun)
+            modules.append(act_fn)
             return nn.Sequential(*modules)
 
         self.conv_layers = nn.Sequential(
@@ -42,8 +97,6 @@ class CRNN(nn.Module):
             nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//16 x WIDTH//4
             conv_layer(128, 128, 2, 1, 0)  # HEIGHT//16-1 x WIDTH//4-1
         )
-        self.output_img_width = img_width // 4 - 1
-        self.output_img_height = img_height // 16 - 1
 
         self.recurrent_layers = nn.LSTM(128, 64, 2, dropout=dropout, bidirectional=True)
         self.output_projection = nn.Linear(2 * 64, n_classes)

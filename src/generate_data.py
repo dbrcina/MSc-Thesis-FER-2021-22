@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 
 import config
 import utils
-from pipeline import detection_preprocessing, selective_search
+from pipeline import contrast_enhancement, selective_search
 
 
 def _save_results(data: np.ndarray,
@@ -35,8 +35,9 @@ def _save_results(data: np.ndarray,
 
 def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...]) -> Tuple[np.ndarray, ...]:
     image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    image = detection_preprocessing(image)
+    image = contrast_enhancement(image)
     rp_bbs = selective_search(image)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     positives = 0
     negatives = 0
@@ -88,10 +89,11 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
 
             counter += 1
             image_path = utils.join_multiple_paths(dirpath, filename)
+            image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\180902\P9190065.jpg"
             print(f"{counter}.) processing '{image_path}' and saving...")
 
             gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
-            gt_bb, gt_lp = utils.read_ground_truth(gt_path)
+            gt_bb, gt_lp, _ = utils.read_ground_truth(gt_path)
 
             X_train, X_val, y_train, y_val = _generate_data_for_image(image_path, gt_bb)
 
@@ -104,6 +106,10 @@ def _generate_data(base_path: str, train_path: Dict[str, str], val_path: Dict[st
             total_negatives_val = counters[1]
 
             print(f"  Time elapsed: {(time.time() - start_time)}s.")
+            if counter == 1:
+                break
+        if counter == 1:
+            break
 
     total_train = total_positives_train + total_negatives_train
     total_val = total_positives_val + total_negatives_val

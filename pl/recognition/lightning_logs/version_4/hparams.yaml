@@ -1,0 +1,10 @@
+loss_name: ctc
+model_hparams:
+  dropout: 0.2
+  n_classes: 37
+model_name: crnn
+optimizer_hparams:
+  lr: 0.01
+  momentum: 0.9
+  weight_decay: 0.001
+optimizer_name: sgd

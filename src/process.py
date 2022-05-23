@@ -6,7 +6,7 @@ import pandas as pd
 
 import config
 import utils
-from pipeline import detection_preprocessing, selective_search, recognition_preprocessing
+from pipeline import contrast_enhancement, selective_search
 from src.transform import four_point_transform
 
 
@@ -16,7 +16,7 @@ def display(title: str, image: np.ndarray) -> None:
 
 
 DEBUG = True
-image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\180902\P9180051.jpg"
+image_path = r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\180902\P9180005.jpg"
 image_annot = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
 
 df = pd.read_csv(image_annot, index_col=0)
@@ -26,7 +26,9 @@ w = df["x2"][0] - x
 h = df["y2"][0] - y
 
 image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-image = detection_preprocessing(image)
+image = contrast_enhancement(image)
+display("ima", image)
+exit()
 
 lp = image[y:y + h, x:x + w]
 lp = cv2.cvtColor(lp, cv2.COLOR_BGR2GRAY)
@@ -54,7 +56,7 @@ hull_out = cv2.convexHull(np.array(hull_in))
 r = cv2.minAreaRect(hull_out)
 box = cv2.boxPoints(r)
 box = np.int0(box)
-cv2.drawContours(lp, [box], 0, (0,0,0), 2)
+cv2.drawContours(lp, [box], 0, (0, 0, 0), 2)
 display("tett", lp)
 trans = four_point_transform(lp, box)
 display("trans", trans)
@@ -80,7 +82,7 @@ bbs = selective_search(image)
 cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
 display("Original", image)
 exit()
-updated = detection_preprocessing(image)
+updated = contrast_enhancement(image)
 display("Updated", updated)
 
 exit()

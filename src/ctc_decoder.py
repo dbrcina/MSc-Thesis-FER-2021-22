@@ -9,9 +9,10 @@ def ctc_decoder(log_probs: torch.Tensor, blank: int = 0) -> List[int]:
     reconstructed = []
     previous_label = None
     for label in labels:
-        if label != blank:
-            if label != previous_label:
-                reconstructed.append(label.item())
-                previous_label = label
+        if label != previous_label:
+            reconstructed.append(label.item())
+            previous_label = label
+
+    reconstructed = list(filter(lambda x: x != blank, reconstructed))
 
     return reconstructed
