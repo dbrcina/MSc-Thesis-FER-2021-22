@@ -27,7 +27,11 @@ def _save_data(data: np.ndarray,
                total_train: int,
                total_val: int) -> Tuple[int, int]:
     val_size = max(1, int(len(data) * config.TRAIN_VAL_SPLIT))
-    train_size = len(data) - val_size
+    train_size = max(1, len(data) - val_size)
+
+    # Train and Val example will be the same in this case...
+    if len(data) == 1:
+        data = np.vstack((data, [data[0]]))
 
     lp_data_dir = lps_data.get(lp)
     if lp_data_dir is None:
@@ -71,7 +75,7 @@ def _generate_data_for_image(image_path: str, gt_bb: Tuple[int, ...], two_rows: 
     for x, y, w, h in rp_bbs:
         rp_bb = (x, y, x + w, y + h)
         iou = utils.calculate_iou(gt_bb, rp_bb)
-        if iou >= config.IOU_RECOGNITION:
+        if iou >= config.IOU_POSITIVE:
             roi = image[y:y + h, x:x + w]
             roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
             if two_rows:
@@ -96,6 +100,10 @@ def _generate_data(base_path: str, paths: Dict[str, str]) -> Tuple[int, int]:
         gt_bb, gt_lp, two_rows = utils.read_ground_truth(gt_path)
 
         upper_data, lower_data = _generate_data_for_image(image_path, gt_bb, two_rows)
+
+        # If IOU is too strict
+        if len(upper_data) == 0:
+            continue
 
         if len(lower_data) > 0:
             # Hardcoded because this one is specific...

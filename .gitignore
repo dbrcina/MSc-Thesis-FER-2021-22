@@ -2,7 +2,5 @@
 __pycache__
 venv
 data/baza_slika
-data/ocr
-data/od*
-generated
-data/recognition
+data/detection*
+data/recognition*

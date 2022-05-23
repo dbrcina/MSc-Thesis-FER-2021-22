@@ -2,7 +2,6 @@ from typing import Tuple, Dict, Any, Union
 
 import pytorch_lightning as pl
 import torch
-import torchmetrics
 from torch import nn, optim
 from torch.nn import functional as F
 
@@ -31,23 +30,23 @@ class CRNN(nn.Module):
             return nn.Sequential(*modules)
 
         self.conv_layers = nn.Sequential(
-            conv_layer(1, 64, 3, 1, 1),
+            conv_layer(1, 16, 3, 1, 1),
             nn.MaxPool2d(2, 2),  # HEIGHT//2 x WIDTH//2
-            conv_layer(64, 128, 3, 1, 1),
+            conv_layer(16, 32, 3, 1, 1),
             nn.MaxPool2d(2, 2),  # HEIGHT//4 x WIDTH//4
-            conv_layer(128, 256, 3, 1, 1),
-            conv_layer(256, 256, 3, 1, 1),
+            conv_layer(32, 64, 3, 1, 1),
+            conv_layer(64, 64, 3, 1, 1),
             nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//8 x WIDTH//4
-            conv_layer(256, 512, 3, 1, 1, batch_normalization=True),
-            conv_layer(512, 512, 3, 1, 1, batch_normalization=True),
+            conv_layer(64, 128, 3, 1, 1, batch_normalization=True),
+            conv_layer(128, 128, 3, 1, 1, batch_normalization=True),
             nn.MaxPool2d((2, 1), (2, 1)),  # HEIGHT//16 x WIDTH//4
-            conv_layer(512, 512, 2, 1, 0)  # HEIGHT//16-1 x WIDTH//4-1
+            conv_layer(128, 128, 2, 1, 0)  # HEIGHT//16-1 x WIDTH//4-1
         )
         self.output_img_width = img_width // 4 - 1
         self.output_img_height = img_height // 16 - 1
 
-        self.recurrent_layers = nn.LSTM(512, 256, 2, dropout=dropout, bidirectional=True)
-        self.output_projection = nn.Linear(2 * 256, n_classes)
+        self.recurrent_layers = nn.LSTM(128, 64, 2, dropout=dropout, bidirectional=True)
+        self.output_projection = nn.Linear(2 * 64, n_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[1:] == (1, self.img_height, self.img_width)
@@ -67,97 +66,9 @@ class CRNN(nn.Module):
         return x
 
 
-class ALPRLightningModuleCTC(pl.LightningModule):
-    def __init__(self,
-                 model_name: str,
-                 model_hparams: Dict[str, Any],
-                 optimizer_name: str,
-                 optimizer_hparams: Dict[str, Any]) -> None:
-        super().__init__()
-
-        self.save_hyperparameters()
-
-        self.model = _MODELS[model_name.lower()](**model_hparams)
-        self.optimizer = _OPTIMIZERS[optimizer_name.lower()](self.parameters(), **optimizer_hparams)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
-
-    def configure_optimizers(self) -> optim.Optimizer:
-        return self.optimizer
-
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        loss, acc = self._step(batch)
-
-        self.log("train_loss", loss)
-        self.log("train_acc", acc, on_step=False, on_epoch=True)
-
-        return loss
-
-    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
-        loss, acc = self._step(batch)
-
-        self.log("val_loss", loss, prog_bar=True)
-        self.log("val_acc", acc, prog_bar=True)
-
-    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
-        x, labels = batch
-        logits = self(x)
-
-        loss = self._loss(logits, labels)
-        acc = torchmetrics.functional.accuracy(logits, labels)
-        return loss, acc
-
-
-class LeNet5(nn.Module):
-    def __init__(self, n_classes: int, dropout: float = 0.3) -> None:
-        super().__init__()
-
-        self.n_classes = n_classes
-        self.dropout = dropout
-
-        act_fun = nn.ReLU(inplace=True)
-        drop_fun = nn.Dropout(p=dropout)
-
-        # In the paper, 32x32 image is expected, but here 28x28 is given, so padding is set to 2
-        self.features = nn.Sequential(
-            # 1
-            nn.Conv2d(1, 16, kernel_size=5, padding=2),  # Nx16x28x28
-            act_fun,
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Nx16x14x14
-            # 2
-            nn.Conv2d(16, 32, kernel_size=5),  # Nx32x10x10
-            act_fun,
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Nx32x5x5
-            # 3
-            nn.Conv2d(32, 64, kernel_size=5),  # Nx64x1x1
-            act_fun,
-            nn.Flatten()  # Nx64 (64*1*1)
-        )
-        self.classifier = nn.Sequential(
-            # 4
-            nn.Linear(64, 128),  # Nx128
-            act_fun,
-            # 5
-            drop_fun,
-            nn.Linear(128, n_classes)  # Nxn_classes
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[1:] == (1, 28, 28), "Expecting a grayscale image with size 28x28"
-
-        x = self.features(x)
-        x = self.classifier(x)
-
-        return x
-
-
 class AlexNet(nn.Module):
     def __init__(self, n_classes: int, dropout: float = 0.5) -> None:
         super().__init__()
-
-        self.n_classes = n_classes
-        self.dropout = dropout
 
         act_fun = nn.ReLU(inplace=True)
         drop_fun = nn.Dropout(p=dropout)
@@ -206,7 +117,6 @@ class AlexNet(nn.Module):
 
 
 _MODELS = {
-    "lenet5": LeNet5,
     "alexnet": AlexNet,
     "crnn": CRNN
 }
@@ -216,19 +126,14 @@ _OPTIMIZERS = {
     "adamw": optim.AdamW
 }
 
-_LOSSES = {
-    "bce": F.binary_cross_entropy_with_logits,
-    "ce": F.cross_entropy,
-    "ctc": F.ctc_loss
-}
-
 
 class ALPRLightningModule(pl.LightningModule):
     def __init__(self,
                  model_name: str,
                  model_hparams: Dict[str, Any],
                  optimizer_name: str,
-                 optimizer_hparams: Dict[str, Any]) -> None:
+                 optimizer_hparams: Dict[str, Any],
+                 loss_name: str) -> None:
         super().__init__()
 
         self.save_hyperparameters()
@@ -236,50 +141,51 @@ class ALPRLightningModule(pl.LightningModule):
         self.model = _MODELS[model_name.lower()](**model_hparams)
         self.optimizer = _OPTIMIZERS[optimizer_name.lower()](self.parameters(), **optimizer_hparams)
 
-        self.is_binary = model_hparams["n_classes"] == 1
-        if self.is_binary:
-            self.loss_with_logits = F.binary_cross_entropy_with_logits
-        else:
-            self.loss_with_logits = F.cross_entropy
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
     def configure_optimizers(self) -> optim.Optimizer:
         return self.optimizer
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
-        logits = self(x)
-
-        if self.is_binary:
-            return torch.sigmoid(logits)
-
-        return torch.softmax(logits, dim=1)
-
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> torch.Tensor:
         loss, acc = self._step(batch)
 
         self.log("train_loss", loss)
-        self.log("train_acc", acc, on_step=False, on_epoch=True)
+        # self.log("train_acc", acc, on_step=False, on_epoch=True)
 
         return loss
 
-    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> None:
+    def validation_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> None:
         loss, acc = self._step(batch)
 
         self.log("val_loss", loss, prog_bar=True)
-        self.log("val_acc", acc, prog_bar=True)
+        # self.log("val_acc", acc, prog_bar=True)
 
-    def _step(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.tensor]:
-        x, labels = batch
+    def _step(self, batch: Tuple[torch.Tensor, ...]) -> Tuple[torch.Tensor, torch.tensor]:
+        loss = None
+        acc = None
+
+        loss_name = self.hparams["loss_name"]
+
+        if loss_name == "ctc":
+            x, targets, target_lengths = batch
+            logits = self(x)
+            log_probs = F.log_softmax(logits, dim=2)
+            input_lengths = torch.tensor(len(x) * [logits.shape[0]])
+            loss = F.ctc_loss(log_probs, targets, input_lengths, target_lengths)
+
+        elif loss_name == "bce":
+            x, labels = batch
+            logits = self(x)
+            loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.float())
+
+        return loss, 0
+
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
         logits = self(x)
 
-        loss = self._loss(logits, labels)
-        acc = torchmetrics.functional.accuracy(logits, labels)
-        return loss, acc
+        loss_name = self.hparams["loss_name"]
+        if loss_name == "bce":
+            return torch.sigmoid(logits)
 
-    def _loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        if self.is_binary:
-            return self.loss_with_logits(logits.view(-1), labels.float())
-
-        return self.loss_with_logits(logits, labels)
+        return logits

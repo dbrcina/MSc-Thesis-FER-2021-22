@@ -8,7 +8,7 @@ import torch
 
 import config
 from datasets import od_transform_val, ocr_transform_val
-from models import ALPRLightningModule
+from models import ALPRLightningModule2
 
 CHARACTERS = list(string.digits + string.ascii_uppercase)
 
@@ -60,7 +60,7 @@ def selective_search(image: np.ndarray, fast: bool = True) -> np.ndarray:
     return rp_bbs
 
 
-def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = False) -> Optional[Tuple[int, ...]]:
+def lp_detection(image: np.ndarray, model: ALPRLightningModule2, debug: bool = False) -> Optional[Tuple[int, ...]]:
     """
     Performs License Plate Detection.
 
@@ -137,7 +137,7 @@ def recognition_preprocessing(image: np.ndarray) -> np.ndarray:
     return thresh
 
 
-def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningModule, debug: bool = False) -> str:
+def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningModule2, debug: bool = False) -> str:
     """
     Performs License Plate Recognition.
 
@@ -195,8 +195,8 @@ def lp_recognition(image: np.ndarray, bb: Tuple[int, ...], model: ALPRLightningM
 
 
 def alpr_pipeline(image: np.ndarray,
-                  od_model: ALPRLightningModule,
-                  ocr_model: ALPRLightningModule,
+                  od_model: ALPRLightningModule2,
+                  ocr_model: ALPRLightningModule2,
                   debug: bool = False) -> Optional[Tuple[Tuple[int, ...], str]]:
     """
     Performs complete Automatic License Plate Recognition.

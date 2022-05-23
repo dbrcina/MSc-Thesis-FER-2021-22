@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from models import ALPRLightningModule
+from models import ALPRLightningModule2
 
 
 def join_multiple_paths(*paths: str) -> str:
@@ -50,8 +50,8 @@ def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1
     return float(area_inter) / (area_bb1 + area_bb2 - area_inter + epsilon)
 
 
-def load_model(path: str) -> ALPRLightningModule:
-    model = ALPRLightningModule.load_from_checkpoint(path)
+def load_model(path: str) -> ALPRLightningModule2:
+    model = ALPRLightningModule2.load_from_checkpoint(path)
     model.eval()
     return model
 
