@@ -1,8 +1,6 @@
 import os.path
 from typing import Tuple
 
-import cv2
-import numpy as np
 import pandas as pd
 
 from models import ALPRLightningModule
@@ -50,15 +48,7 @@ def calculate_iou(bb1: Tuple[int, ...], bb2: Tuple[int, ...], epsilon: float = 1
     return float(area_inter) / (area_bb1 + area_bb2 - area_inter + epsilon)
 
 
-def load_model(path: str, loss_name: str = "ctc") -> ALPRLightningModule:
-    model = ALPRLightningModule.load_from_checkpoint(path, loss_name=loss_name)
+def load_model(path: str) -> ALPRLightningModule:
+    model = ALPRLightningModule.load_from_checkpoint(path)
     model.eval()
     return model
-
-
-def auto_canny(image: np.ndarray, sigma: float = 0.33) -> np.ndarray:
-    v = np.median(image)
-    lower = int(max(0, (1.0 - sigma) * v))
-    upper = int(min(255, (1.0 + sigma) * v))
-    edged = cv2.Canny(image, lower, upper)
-    return edged

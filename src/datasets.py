@@ -1,39 +1,44 @@
-import string
 from typing import Tuple
 
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
+import config
 from mappings import text2labels
 
 recognition_transform_train = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Grayscale(),
-    transforms.Normalize(0.593, 0.2368)
+    transforms.RandomRotation(config.LP_ROTATION_ANGLE)
 ])
 
 recognition_transform_val = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Grayscale(),
-    transforms.Normalize(0.593, 0.2368)
 ])
 
 detection_transform_train = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.4971, 0.4885, 0.4879], [0.2538, 0.2534, 0.2588])
+    transforms.RandomRotation(config.LP_ROTATION_ANGLE)
 ])
 
 detection_transform_val = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize([0.4971, 0.4885, 0.4879], [0.2538, 0.2534, 0.2588])
 ])
+
+
+# Default pil_loader in ImageFolder implementation forces RGB conversion.
+# This is not needed because dataset will always be grayscale.
+def pil_loader(path: str) -> Image.Image:
+    with open(path, "rb") as f:
+        img = Image.open(f)
+        return img.convert("L")
 
 
 class _ALPRDataset(Dataset):
     def __init__(self, root: str, transform) -> None:
-        self.dataset = ImageFolder(root, transform)
+        self.dataset = ImageFolder(root, transform, loader=pil_loader)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.dataset[idx]
@@ -43,10 +48,6 @@ class _ALPRDataset(Dataset):
 
 
 class RecognitionDataset(_ALPRDataset):
-    CHARS = list(string.digits + string.ascii_uppercase)
-    CHAR2LABEL = {c: i + 1 for i, c in enumerate(CHARS)}
-    LABEL2CHAR = {label: c for c, label in CHAR2LABEL.items()}
-
     def __init__(self, root: str, train: bool) -> None:
         super().__init__(root, recognition_transform_train if train else recognition_transform_val)
 

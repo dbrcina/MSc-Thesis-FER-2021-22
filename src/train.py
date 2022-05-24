@@ -37,7 +37,7 @@ def create_trainer_and_fit(args: Dict[str, Any]) -> pl.Trainer:
     model = ALPRLightningModule(**args["alpr_module"])
 
     ckp_callback = ModelCheckpoint(dirpath=args["ckp_dir"],
-                                   filename="{epoch:02d}-{val_loss:.4f}-{val_acc:.4f}",
+                                   filename="{epoch:02d}-{val_loss:.4f}",
                                    monitor="val_loss",
                                    save_weights_only=True)
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         "val_batch_size": 256,
         "collate_fn": "recognition",
         "alpr_module": {
-            "model_name": "crnn",
+            "model_name": "recognizer",
             "model_hparams": {
                 "n_classes": 37,
                 "dropout": 0.2
@@ -81,12 +81,12 @@ if __name__ == "__main__":
     }
 
     detection_config = {
-        "data_path": "data/generated",
+        "data_path": "data/detection",
         "dataset_name": "detection",
         "train_batch_size": 256,
         "val_batch_size": 256,
         "alpr_module": {
-            "model_name": "alexnet",
+            "model_name": "detector",
             "model_hparams": {
                 "n_classes": 1,
                 "dropout": 0.5

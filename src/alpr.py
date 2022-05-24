@@ -12,12 +12,12 @@ from pipeline import alpr_pipeline
 
 
 class ControlFrame(ttk.Frame):
-    def __init__(self, container, image_canvas: tk.Canvas, detection_path: str, recognition_path: str) -> None:
+    def __init__(self, container, image_canvas: tk.Canvas, detector_path: str, recognizer_path: str) -> None:
         super().__init__(container)
 
         self.image_canvas = image_canvas
-        self.detection_model = utils.load_model(detection_path, loss_name="bce")
-        self.recognition_model = utils.load_model(recognition_path)
+        self.detector = utils.load_model(detector_path)
+        self.recognizer = utils.load_model(recognizer_path)
 
         self._create_widgets()
 
@@ -48,9 +48,7 @@ class ControlFrame(ttk.Frame):
     def _start(self) -> None:
         image_cpy = self.image.copy()
 
-        result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR),
-                               self.detection_model,
-                               self.recognition_model)
+        result = alpr_pipeline(cv2.cvtColor(image_cpy, cv2.COLOR_RGB2BGR), self.detector, self.recognizer, debug=True)
         if result is None:
             messagebox.showinfo("Information", "Didn't manage to find any license plate!")
             return
@@ -66,11 +64,11 @@ class ControlFrame(ttk.Frame):
 
 
 class ALPRApp(tk.Tk):
-    def __init__(self, detection_path: str, recognition_path: str) -> None:
+    def __init__(self, detector_path: str, recognizer_path: str) -> None:
         super().__init__()
 
-        self.detection_path = detection_path
-        self.recognition_path = recognition_path
+        self.detector_path = detector_path
+        self.recognizer_path = recognizer_path
         self.title("Automatic License Plate Recognizer")
         self.resizable(False, False)
 
@@ -82,14 +80,14 @@ class ALPRApp(tk.Tk):
 
         ttk.Separator(self, orient=tk.HORIZONTAL).pack(fill="x")
 
-        control_frame = ControlFrame(self, image_canvas, self.detection_path, self.recognition_path)
+        control_frame = ControlFrame(self, image_canvas, self.detector_path, self.recognizer_path)
         control_frame.pack()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automatic License Plate Recognizer")
-    parser.add_argument("detection_path", type=str)
-    parser.add_argument("recognition_path", type=str)
+    parser.add_argument("detector_path", type=str)
+    parser.add_argument("recognizer_path", type=str)
     args = vars(parser.parse_args())
 
-    ALPRApp(args["detection_path"], args["recognition_path"]).mainloop()
+    ALPRApp(args["detector_path"], args["recognizer_path"]).mainloop()

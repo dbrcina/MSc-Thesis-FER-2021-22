@@ -1,0 +1,3 @@
+Reading images from 'data\recognition\train' into memory and calculating mean and std:
+MEAN: tensor([0.5914, 0.5914, 0.5914])
+STD: tensor([0.2274, 0.2274, 0.2274])
