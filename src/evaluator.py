@@ -1,65 +1,62 @@
 import argparse
-import os
+import glob
 from typing import Any, Dict
 
 import cv2
-from tqdm import tqdm
+from torchmetrics.functional import char_error_rate
+from tqdm.auto import tqdm
 
 import config
 import utils
 from pipeline import alpr_pipeline
 
 
-def running_mean(mean: float, x: float, n: int) -> float:
-    if n == 1:
-        return x
-
-    return mean + (x - mean) / n
-
-
 def main(args: Dict[str, Any]) -> None:
-    od_model = utils.load_model(args["od_path"])
-    ocr_model = utils.load_model(args["ocr_path"])
+    data_path = args["data_path"]
+    detector = utils.load_model(args["detector_path"])
+    recognizer = utils.load_model(args["recognizer_path"])
 
-    n = 0
-    mean_iou = 0
-    results = []
+    iou_sum = 0
+    cer_sum = 0
+    correct_lp = 0
 
-    for dirpath, _, filenames in os.walk(args["data_path"]):
-        for filename in tqdm(filenames, desc=f"{dirpath}"):
-            if not filename.endswith(config.IMG_EXTENSIONS):
-                continue
+    filenames = glob.glob(f"{data_path}/**/*.jpg", recursive=True)
 
-            n += 1
+    for image_path in tqdm(filenames):
+        image = cv2.imread(image_path)
 
-            image_path = utils.join_multiple_paths(dirpath, filename)
-            image = cv2.imread(image_path)
+        result = alpr_pipeline(image, detector, recognizer)
+        if result is None:
+            print(f"'{image_path}'   : didn't manage to find license plate!")
+            continue
 
-            result = alpr_pipeline(image, od_model, ocr_model)
-            if result is None:
-                mean_iou = running_mean(mean_iou, 0, n)
-                continue
+        (x, y, w, h), lp = result
+        lp_bb = (x, y, x + w, y + h)
 
-            (lp_x, lp_y, lp_w, lp_h), lp = result
+        gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
+        gt_bb, gt_lp, _ = utils.read_ground_truth(gt_path)
 
-            gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
-            gt_bb, _ = utils.read_ground_truth(gt_path)
-            lp_bb = (lp_x, lp_y, lp_x + lp_w, lp_y + lp_h)
+        iou = utils.calculate_iou(gt_bb, lp_bb)
+        iou_sum += iou
 
-            iou = utils.calculate_iou(gt_bb, lp_bb)
-            if iou < 0.2:
-                results.append((image_path, iou))
+        cer_sum += char_error_rate(lp, gt_lp).item()
 
-            mean_iou = running_mean(mean_iou, iou, n)
+        if gt_lp != lp or iou <= 0.5:
+            print(f"'{image_path}'   : IOU={iou}   Predicted={lp}   Target={gt_lp}")
+        elif gt_lp == lp:
+            correct_lp += 1
 
-    with open(config.EVALUATOR_RESULTS_FILE, mode="w") as file:
-        file.write(f"Mean IOU = {mean_iou:.3f}\n\n")
-        [file.write(f"{path}: {iou:.3f}\n") for path, iou in results]
+    n = len(filenames)
+    print("-------------------------")
+    print(f"Mean IOU             : {iou_sum / n:.5f}")
+    print(f"Recognition accuracy : {correct_lp / n:.5f}")
+    print(f"Char Error Rate      : {cer_sum / n:.5f}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ALPR evaluation")
     parser.add_argument("data_path", type=str)
-    parser.add_argument("od_path", type=str)
-    parser.add_argument("ocr_path", type=str)
+    parser.add_argument("detector_path", type=str)
+    parser.add_argument("recognizer_path", type=str)
+
     main(vars(parser.parse_args()))
