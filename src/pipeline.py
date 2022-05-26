@@ -6,10 +6,9 @@ import numpy as np
 import torch
 
 import config
+from ctc_decoder import ctc_decoder
 from datasets import detection_transform_val, recognition_transform_val
-from mappings import labels2text
 from models import ALPRLightningModule
-from predict import predict_binary, predict_ctc
 
 
 def contrast_enhancement(image: np.ndarray) -> np.ndarray:
@@ -22,7 +21,7 @@ def contrast_enhancement(image: np.ndarray) -> np.ndarray:
     y = clahe.apply(y)
 
     # Applying gaussian filter on Y component
-    y = cv2.GaussianBlur(y, (5, 5), 0)
+    y = cv2.GaussianBlur(y, (3, 3), 0)
 
     # YCrCb -> BGR
     image = cv2.cvtColor(cv2.merge((y, cr, cb)), cv2.COLOR_YCrCb2BGR)
@@ -63,7 +62,7 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = Fa
     # Predict license plates
     start_time = time.time()
     logits = model(x)
-    predictions = predict_binary(logits)
+    predictions = torch.sigmoid(logits)
     if debug:
         print(f"  predict: {time.time() - start_time:.2f}s.")
 
@@ -86,7 +85,6 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = Fa
     if len(lp_bbs) == 0:
         return None
 
-    # TODO: Apply some more filtering on proposed license plates?
     return lp_bbs[0]
 
 
@@ -103,11 +101,11 @@ def lp_recognition(image: np.ndarray, model: ALPRLightningModule, debug: bool = 
     # Predict characters
     start_time = time.time()
     logits = model(x)
-    prediction = predict_ctc(logits)
+    predictions = ctc_decoder(torch.log_softmax(logits, dim=-1), mode="beam_search")
     if debug:
         print(f"  predict: {time.time() - start_time:.2f}s.")
 
-    return labels2text(prediction)
+    return predictions[0]
 
 
 def alpr_pipeline(image: np.ndarray,
@@ -117,10 +115,7 @@ def alpr_pipeline(image: np.ndarray,
     start_time = time.time()
 
     # Contrast enhancement
-    ce_start_time = time.time()
     image = contrast_enhancement(image)
-    if debug:
-        print(f"Contrast enhancement: {time.time() - ce_start_time:.2f}s")
 
     # License Plate Detection
     if debug:

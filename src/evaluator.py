@@ -18,7 +18,8 @@ def main(args: Dict[str, Any]) -> None:
 
     iou_sum = 0
     cer_sum = 0
-    correct_lp = 0
+    correct_detections = 0
+    correct_recognitions = 0
 
     filenames = glob.glob(f"{data_path}/**/*.jpg", recursive=True)
 
@@ -44,12 +45,16 @@ def main(args: Dict[str, Any]) -> None:
         if gt_lp != lp or iou <= 0.5:
             print(f"'{image_path}'   : IOU={iou}   Predicted={lp}   Target={gt_lp}")
         elif gt_lp == lp:
-            correct_lp += 1
+            correct_recognitions += 1
+
+        if iou >= 0.7:
+            correct_detections += 1
 
     n = len(filenames)
     print("-------------------------")
+    print(f"Detection accuracy   : {correct_detections / n:.5f}")
+    print(f"Recognition accuracy : {correct_recognitions / n:.5f}")
     print(f"Mean IOU             : {iou_sum / n:.5f}")
-    print(f"Recognition accuracy : {correct_lp / n:.5f}")
     print(f"Char Error Rate      : {cer_sum / n:.5f}")
 
 

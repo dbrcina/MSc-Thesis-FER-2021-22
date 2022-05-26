@@ -11,7 +11,9 @@ from mappings import text2labels
 
 recognition_transform_train = transforms.Compose([
     transforms.ToTensor(),
-    transforms.RandomRotation(config.LP_ROTATION_ANGLE)
+    transforms.RandomPerspective(distortion_scale=config.LP_DISTORTION),
+    transforms.RandomRotation(config.LP_ROT_ANGLE, interpolation=transforms.InterpolationMode.BILINEAR, expand=True),
+    transforms.Resize(config.RECOGNITION_INPUT_DIM[::-1])
 ])
 
 recognition_transform_val = transforms.Compose([
@@ -20,7 +22,9 @@ recognition_transform_val = transforms.Compose([
 
 detection_transform_train = transforms.Compose([
     transforms.ToTensor(),
-    transforms.RandomRotation(config.LP_ROTATION_ANGLE)
+    transforms.RandomPerspective(distortion_scale=config.LP_DISTORTION),
+    transforms.RandomRotation(config.LP_ROT_ANGLE, interpolation=transforms.InterpolationMode.BILINEAR, expand=True),
+    transforms.Resize(config.DETECTION_INPUT_DIM[::-1])
 ])
 
 detection_transform_val = transforms.Compose([

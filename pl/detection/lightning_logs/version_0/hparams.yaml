@@ -1,10 +1,13 @@
 loss_name: bce
 model_hparams:
-  dropout: 0.3
+  dropout: 0.5
   n_classes: 1
 model_name: detector
 optimizer_hparams:
-  lr: 1
-  rho: 0.9
-  weight_decay: 0.0001
-optimizer_name: adadelta
+  amsgrad: true
+  betas: !!python/tuple
+  - 0.9
+  - 0.999
+  lr: 0.001
+  weight_decay: 0.01
+optimizer_name: adamw

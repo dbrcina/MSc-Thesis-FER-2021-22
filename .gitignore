@@ -2,5 +2,6 @@
 __pycache__
 venv
 data/baza_slika
+data/test
 data/detection*
 data/recognition*
