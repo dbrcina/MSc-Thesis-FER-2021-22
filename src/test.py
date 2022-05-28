@@ -2,14 +2,14 @@ import cv2
 import numpy as np
 from torchvision import transforms
 
-image = cv2.imread(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\detection\val\1\772-ZG4100AC.jpg")
+image = cv2.imread(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\detection\train\1\1-171NVX75.jpg")
 image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 t = transforms.Compose([
     transforms.ToTensor(),
-    transforms.RandomPerspective(distortion_scale=0.2, p=1),
-    transforms.RandomRotation(10, interpolation=transforms.InterpolationMode.BILINEAR, expand=True),
-    transforms.Resize((32, 100)),
+    transforms.RandomPerspective(distortion_scale=0.1, p=1),
+    transforms.RandomRotation(10, interpolation=transforms.InterpolationMode.BILINEAR),
+    # transforms.Resize((32, 100)),
     transforms.ToPILImage()
 ])
 

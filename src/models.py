@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Any, Union
+from typing import Tuple, Dict, Any, Union, List
 
 import pytorch_lightning as pl
 import torch
@@ -89,9 +89,7 @@ class Recognizer(nn.Module):
     def __init__(self, n_classes: int, dropout: float = 0.2) -> None:
         super().__init__()
 
-        act_fn = nn.ReLU(inplace=True)
-
-        self.conv_layers = CNNBackbone(act_fn=act_fn)
+        self.conv_layers = CNNBackbone()
         self.recurrent_layers = nn.LSTM(self.conv_layers.out_channels, 64, 2, dropout=dropout, bidirectional=True)
         self.output_projection = nn.Linear(2 * 64, n_classes)
 
@@ -120,6 +118,10 @@ _OPTIMIZERS = {
     "adadelta": optim.Adadelta
 }
 
+_LR_SCHEDULERS = {
+    "reducelronplateau": optim.lr_scheduler.ReduceLROnPlateau
+}
+
 
 class ALPRLightningModule(pl.LightningModule):
     def __init__(self,
@@ -127,6 +129,8 @@ class ALPRLightningModule(pl.LightningModule):
                  model_hparams: Dict[str, Any],
                  optimizer_name: str,
                  optimizer_hparams: Dict[str, Any],
+                 lr_scheduler_name: str,
+                 lr_scheduler_hparams: Dict[str, Any],
                  loss_name: str) -> None:
         super().__init__()
 
@@ -134,21 +138,30 @@ class ALPRLightningModule(pl.LightningModule):
 
         self.model = _MODELS[model_name.lower()](**model_hparams)
         self.optimizer = _OPTIMIZERS[optimizer_name.lower()](self.parameters(), **optimizer_hparams)
+        self.lr_scheduler = _LR_SCHEDULERS[lr_scheduler_name.lower()](self.optimizer, **lr_scheduler_hparams)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
-    def configure_optimizers(self) -> optim.Optimizer:
-        return self.optimizer
+    def configure_optimizers(self) -> Dict[str, Any]:
+        return {
+            "optimizer": self.optimizer,
+            "lr_scheduler": {
+                "scheduler": self.lr_scheduler,
+                "interval": "epoch",
+                "frequency": 1,
+                "monitor": "val_loss"
+            }
+        }
 
-    def training_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> Dict[str, torch.Tensor]:
         loss = self._step(batch)
-        self.log("train_loss", loss)
-        return loss
+        return {"loss": loss}
 
-    def validation_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> None:
+    def validation_step(self, batch: Tuple[torch.Tensor, ...], batch_idx: int) -> Dict[str, torch.Tensor]:
         loss = self._step(batch)
-        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        return {"loss": loss}
 
     def _step(self, batch: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         loss = None
@@ -168,3 +181,13 @@ class ALPRLightningModule(pl.LightningModule):
             loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.float())
 
         return loss
+
+    def training_epoch_end(self, outputs: List[Dict[str, torch.Tensor]]) -> None:
+        self._epoch_end(outputs, "Train/Loss")
+
+    def validation_epoch_end(self, outputs: List[Dict[str, torch.Tensor]]) -> None:
+        self._epoch_end(outputs, "Val/Loss")
+
+    def _epoch_end(self, outputs: List[Dict[str, torch.Tensor]], graph_tag: str) -> None:
+        avg_loss = torch.stack([x["loss"] for x in outputs]).mean()
+        self.logger.experiment.add_scalar(graph_tag, avg_loss, self.current_epoch)

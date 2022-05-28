@@ -8,7 +8,10 @@ from tqdm.auto import tqdm
 
 import config
 import utils
-from pipeline import alpr_pipeline
+from pipeline import lp_detection, lp_recognition, contrast_enhancement
+
+cv2.useOptimized()
+cv2.setNumThreads(4)
 
 
 def main(args: Dict[str, Any]) -> None:
@@ -18,44 +21,53 @@ def main(args: Dict[str, Any]) -> None:
 
     iou_sum = 0
     cer_sum = 0
-    correct_detections = 0
     correct_recognitions = 0
+    incorrect_length = 0
 
     filenames = glob.glob(f"{data_path}/**/*.jpg", recursive=True)
 
     for image_path in tqdm(filenames):
-        image = cv2.imread(image_path)
-
-        result = alpr_pipeline(image, detector, recognizer)
-        if result is None:
-            print(f"'{image_path}'   : didn't manage to find license plate!")
-            continue
-
-        (x, y, w, h), lp = result
-        lp_bb = (x, y, x + w, y + h)
-
         gt_path = utils.replace_file_extension(image_path, config.ANNOTATION_EXT)
         gt_bb, gt_lp, _ = utils.read_ground_truth(gt_path)
 
-        iou = utils.calculate_iou(gt_bb, lp_bb)
-        iou_sum += iou
+        image = cv2.imread(image_path)
+        image = contrast_enhancement(image)
+        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        cer_sum += char_error_rate(lp, gt_lp).item()
+        final_iou = None
+        final_lp = None
+        for _ in range(1):
+            bb = lp_detection(image, detector)
+            if bb is None:
+                continue
 
-        if gt_lp != lp or iou <= 0.5:
-            print(f"'{image_path}'   : IOU={iou}   Predicted={lp}   Target={gt_lp}")
-        elif gt_lp == lp:
+            x, y, w, h = bb
+            iou = utils.calculate_iou(gt_bb, (x, y, x + w, y + h))
+            if final_iou is None or iou > final_iou:
+                final_iou = iou
+                final_lp = lp_recognition(image_gray[y:y + h, x:x + w], recognizer)
+
+        if final_iou is None:
+            print(f"'{image_path}' : didn't manage to find license plate!")
+            continue
+
+        iou_sum += final_iou
+        cer_sum += char_error_rate(final_lp, gt_lp).item()
+
+        if gt_lp != final_lp or final_iou <= 0.5:
+            print(f"'{image_path}' : IOU={final_iou:.3f}   Predicted={final_lp}   Target={gt_lp}")
+            if len(gt_lp) != len(final_lp):
+                incorrect_length += 1
+
+        elif gt_lp == final_lp:
             correct_recognitions += 1
-
-        if iou >= 0.7:
-            correct_detections += 1
 
     n = len(filenames)
     print("-------------------------")
-    print(f"Detection accuracy   : {correct_detections / n:.5f}")
     print(f"Recognition accuracy : {correct_recognitions / n:.5f}")
     print(f"Mean IOU             : {iou_sum / n:.5f}")
     print(f"Char Error Rate      : {cer_sum / n:.5f}")
+    print(f"Incorrect length     : {incorrect_length / n:.5f}")
 
 
 if __name__ == "__main__":

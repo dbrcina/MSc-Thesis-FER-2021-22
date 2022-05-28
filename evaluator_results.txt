@@ -1,9 +1,0 @@
-Mean IOU = 0.767
-
-data\baza_slika\070603\P6070009.jpg: 0.000
-data\baza_slika\141002\Pa140032.jpg: 0.000
-data\baza_slika\180902\P9180005.jpg: 0.000
-data\baza_slika\180902\P9180040.jpg: 0.000
-data\baza_slika\180902\P9190065.jpg: 0.000
-data\baza_slika\280503\P5280003.jpg: 0.000
-data\baza_slika\280503\P5280015.jpg: 0.000
