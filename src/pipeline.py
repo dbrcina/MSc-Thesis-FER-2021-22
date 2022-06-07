@@ -21,7 +21,7 @@ def contrast_enhancement(image: np.ndarray) -> np.ndarray:
     y = clahe.apply(y)
 
     # Applying gaussian filter on Y component
-    y = cv2.GaussianBlur(y, (3, 3), 0)
+    y = cv2.GaussianBlur(y, config.GAUSSIAN_BLUR_KSIZE, config.GAUSSIAN_BLUR_SIGMAX)
 
     # YCrCb -> BGR
     image = cv2.cvtColor(cv2.merge((y, cr, cb)), cv2.COLOR_YCrCb2BGR)
@@ -51,6 +51,20 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = Fa
 
     # Prepare input for the model
     start_time = time.time()
+
+    # Filter based on proportions
+    def filter_lp(bb: Tuple[int, ...]) -> bool:
+        x, y, w, h = bb
+        ratio = w / h
+        correct_ratio = config.LP_WIDTH_HEIGHT_RATIO_MIN <= ratio <= config.LP_WIDTH_HEIGHT_RATIO_MAX
+        correct_width = config.LP_WIDTH_MIN <= w <= config.LP_WIDTH_MAX
+        correct_height = config.LP_HEIGHT_MIN <= h <= config.LP_HEIGHT_MAX
+        return all((correct_ratio, correct_width, correct_height))
+
+    rp_bbs = np.array(list(filter(filter_lp, rp_bbs)))
+    if len(rp_bbs) == 0:
+        return None
+
     x = torch.stack([
         detection_transform_val(
             cv2.resize(image[y:y + h, x:x + w], config.DETECTION_INPUT_DIM, interpolation=cv2.INTER_CUBIC)
@@ -69,21 +83,6 @@ def lp_detection(image: np.ndarray, model: ALPRLightningModule, debug: bool = Fa
     # Retrieve only top k predictions
     topk = torch.topk(predictions.view(-1), k=config.LP_TOPK)
     lp_bbs = rp_bbs[topk.indices]
-
-    # Filter based on proportions
-    def filter_lp(bb: Tuple[int, ...]) -> bool:
-        x, y, w, h = bb
-        ratio = w / h
-        correct_ratio = config.LP_WIDTH_HEIGHT_RATIO_MIN <= ratio <= config.LP_WIDTH_HEIGHT_RATIO_MAX
-        correct_width = config.LP_WIDTH_MIN <= w <= config.LP_WIDTH_MAX
-        correct_height = config.LP_HEIGHT_MIN <= h <= config.LP_HEIGHT_MAX
-        return all((correct_ratio, correct_width, correct_height))
-
-    lp_bbs = list(filter(filter_lp, lp_bbs))
-
-    # If there are no valid bbs
-    if len(lp_bbs) == 0:
-        return None
 
     return lp_bbs[0]
 
