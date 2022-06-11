@@ -21,6 +21,7 @@ def main(args: Dict[str, Any]) -> None:
 
     iou_sum = 0
     cer_sum = 0
+    correct_detections = 0
     correct_recognitions = 0
     incorrect_length = 0
 
@@ -36,7 +37,7 @@ def main(args: Dict[str, Any]) -> None:
 
         final_iou = None
         final_lp = None
-        for _ in range(1):
+        for _ in range(3):
             bb = lp_detection(image, detector)
             if bb is None:
                 continue
@@ -59,11 +60,14 @@ def main(args: Dict[str, Any]) -> None:
             if len(gt_lp) != len(final_lp):
                 incorrect_length += 1
 
-        elif gt_lp == final_lp:
+        if final_iou > 0.5:
+            correct_detections += 1
+        if gt_lp == final_lp:
             correct_recognitions += 1
 
     n = len(filenames)
     print("-------------------------")
+    print(f"Detection   accuracy : {correct_detections / n:.5f}")
     print(f"Recognition accuracy : {correct_recognitions / n:.5f}")
     print(f"Mean IOU             : {iou_sum / n:.5f}")
     print(f"Char Error Rate      : {cer_sum / n:.5f}")

@@ -1,11 +1,13 @@
-'data\test\1.jpg' : IOU=0.912   Predicted=ZG9257UG   Target=ZG9757HG
-'data\test\2.jpg' : IOU=0.923   Predicted=ZG97571   Target=ZG9757HG
-'data\test\4.jpg' : IOU=0.774   Predicted=ZG469AC   Target=ZG4585ES
-'data\test\6.jpg' : IOU=0.889   Predicted=ZG4585N   Target=ZG4585ES
-'data\test\7.jpg' : IOU=0.876   Predicted=ZG8318B   Target=ZG8318HR
-'data\test\9.jpg' : IOU=0.867   Predicted=ZGT77S   Target=ZG1712RM
+'data\test\1.jpg' : IOU=0.580   Predicted=ZG975Z   Target=ZG9757HG
+'data\test\2.jpg' : IOU=0.709   Predicted=ZG9757G   Target=ZG9757HG
+'data\test\4.jpg' : IOU=0.665   Predicted=ZG4585CP   Target=ZG4585ES
+'data\test\5.jpg' : IOU=0.674   Predicted=ZG4585FS   Target=ZG4585ES
+'data\test\7.jpg' : IOU=0.909   Predicted=ZG8318MR   Target=ZG8318HR
+'data\test\8.jpg' : IOU=0.871   Predicted=ZG1712BH   Target=ZG1712RM
+'data\test\9.jpg' : IOU=0.756   Predicted=ZG71N   Target=ZG1712RM
 -------------------------
-Recognition accuracy : 0.40000
-Mean IOU             : 0.87837
-Char Error Rate      : 0.22500
-Incorrect length     : 0.50000
+Detection   accuracy : 1.00000
+Recognition accuracy : 0.30000
+Mean IOU             : 0.74750
+Char Error Rate      : 0.17500
+Incorrect length     : 0.30000

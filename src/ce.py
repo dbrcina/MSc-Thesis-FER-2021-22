@@ -8,9 +8,9 @@ import numpy as np
 
 import config
 
-FOLDER = "../ce_examples/1"
+FOLDER = "../ce_examples/3"
 os.makedirs(FOLDER, exist_ok=True)
-SAVE = False
+SAVE = True
 
 
 def calc_hist(image: np.ndarray) -> np.ndarray:
@@ -26,7 +26,7 @@ def convert_image(y: np.ndarray, cr: np.ndarray, cb: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(cv2.merge([y, cr, cb]), cv2.COLOR_YCrCb2BGR)
 
 
-image = cv2.imread(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\ce_examples\2\original.jpg")
+image = cv2.imread(r"C:\Users\dbrcina\Desktop\MSc-Thesis-FER-2021-22\data\baza_slika\040603\P6040036.jpg")
 cv2.imshow("Original image", image)
 if SAVE:
     cv2.imwrite(f"{FOLDER}/original.jpg", image)
