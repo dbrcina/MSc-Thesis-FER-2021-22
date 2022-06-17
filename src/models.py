@@ -90,7 +90,8 @@ class Recognizer(nn.Module):
         super().__init__()
 
         self.conv_layers = CNNBackbone()
-        self.recurrent_layers = nn.LSTM(self.conv_layers.out_channels, 64, 2, dropout=dropout, bidirectional=True)
+        self.recurrent_layers = nn.LSTM(self.conv_layers.out_channels * self.conv_layers.out_height, 64, 2,
+                                        dropout=dropout, bidirectional=True)
         self.output_projection = nn.Linear(2 * 64, n_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

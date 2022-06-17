@@ -56,9 +56,9 @@ class ControlFrame(ttk.Frame):
         (lp_x, lp_y, lp_w, lp_h), lp = result
 
         cv2.rectangle(image_cpy, (lp_x, lp_y), (lp_x + lp_w, lp_y + lp_h), (255, 0, 0), 2)
-        (w, h), _ = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        cv2.rectangle(image_cpy, (lp_x, lp_y - 20), (lp_x + w, lp_y), (255, 0, 0), -1)
-        cv2.putText(image_cpy, lp, (lp_x, lp_y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+        (w, h), _ = cv2.getTextSize(lp, cv2.FONT_HERSHEY_SIMPLEX, 1, 1)
+        cv2.rectangle(image_cpy, (lp_x, lp_y - 30), (lp_x + w, lp_y), (255, 0, 0), -1)
+        cv2.putText(image_cpy, lp, (lp_x, lp_y - 5), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
         self._display_image(image_cpy)
 

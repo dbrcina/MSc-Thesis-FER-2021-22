@@ -9,12 +9,12 @@ t = transforms.Compose([
     transforms.ToTensor(),
     transforms.RandomPerspective(distortion_scale=0.1, p=1),
     transforms.RandomRotation(10, interpolation=transforms.InterpolationMode.BILINEAR),
-    # transforms.Resize((32, 100)),
     transforms.ToPILImage()
 ])
 
-for _ in range(10):
-    i = np.array(t(image))
-    cv2.imshow("Test", i)
+for i in range(3):
+    img = np.array(t(image))
+    cv2.imshow("Test", img)
+    cv2.imwrite(f"{i + 1}.jpg", img)
     cv2.waitKey()
     cv2.destroyWindow("Test")

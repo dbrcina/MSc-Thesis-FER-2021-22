@@ -35,7 +35,7 @@
 'data\baza_slika\280503\P5280122.jpg' : IOU=0.724   Predicted=BRM160   Target=BIRM160
 'data\baza_slika\280503\P5280125.jpg' : IOU=0.000   Predicted=3091GM   Target=ZG3209F
 -------------------------
-Detection   accuracy : 0.97642
+Detection accuracy   : 0.97642
 Recognition accuracy : 0.92927
 Mean IOU             : 0.81306
 Char Error Rate      : 0.03187

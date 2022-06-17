@@ -67,7 +67,7 @@ def main(args: Dict[str, Any]) -> None:
 
     n = len(filenames)
     print("-------------------------")
-    print(f"Detection   accuracy : {correct_detections / n:.5f}")
+    print(f"Detection accuracy   : {correct_detections / n:.5f}")
     print(f"Recognition accuracy : {correct_recognitions / n:.5f}")
     print(f"Mean IOU             : {iou_sum / n:.5f}")
     print(f"Char Error Rate      : {cer_sum / n:.5f}")
