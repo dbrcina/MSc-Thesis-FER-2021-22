@@ -30,4 +30,4 @@ temporal classification (CTC) loss, data augmentation, Adam, intersection over u
 ---
 
 ### Examples
-![GUI](Examples/gui.png)
+![GUI](Examples/gui.jpg)
