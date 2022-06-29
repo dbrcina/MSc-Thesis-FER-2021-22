@@ -1,4 +1,4 @@
-# Automatic license plate recognition using deep models
+# Automatic License Plate Recognition using Deep Models
 
 Master of Science Thesis at Faculty of Electrical Engineering and Computing, University of Zagreb, under the 
 mentorship of izv. prof. dr. sc. Marko Čupić.
